@@ -14,6 +14,10 @@ build/
 .env
 .env.local
 .env.development.local
+
+# Local configuration files
+temporal.json
+*_config.json
 .env.test.local
 .env.production.local
 
