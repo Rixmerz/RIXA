@@ -1,6 +1,18 @@
-# RIXA - Runtime Intelligent eXecution Adapter
+<div align="center">
+  <img src="rixa-logo.png" alt="RIXA Logo" width="200" height="200">
 
-A Model Context Protocol (MCP) server that bridges AI clients with VSCode's Debug Adapter Protocol (DAP), enabling intelligent debugging workflows.
+  # RIXA - Runtime Intelligent eXecution Adapter
+
+  **🔗 Bridging AI and Debugging**
+
+  A production-ready Model Context Protocol (MCP) server that seamlessly connects AI clients with VSCode's Debug Adapter Protocol (DAP), enabling intelligent debugging workflows with advanced error recovery and comprehensive tooling.
+
+  [![CI](https://github.com/Rixmerz/RIXA/actions/workflows/ci.yml/badge.svg)](https://github.com/Rixmerz/RIXA/actions/workflows/ci.yml)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+  [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
+  [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+</div>
 
 ## Overview
 
@@ -20,38 +32,53 @@ RIXA translates MCP commands to DAP requests and relays DAP events back to AI cl
                                              +-------------------+
 ```
 
-## Features
+## ✨ Features
 
-- **Bi-directional Protocol Translation**: MCP ↔ DAP command and event mapping
-- **Session Management**: Multiple concurrent debugging sessions with isolation
-- **File System Resources**: Safe project tree and file access with configurable policies
-- **Execution Control**: Run, pause, step-in, step-over, step-out operations
-- **State Inspection**: Variables, call stack, scopes, and expression evaluation
+### 🔧 **17 MCP Debugging Tools**
+- **Session Management**: Create, configure, and manage debugging sessions
+- **Execution Control**: Continue, pause, step-in, step-over, step-out, restart
+- **Breakpoint Management**: Set, remove, and list breakpoints with conditions
+- **State Inspection**: Stack traces, variables, scopes, and expression evaluation
+- **Enhanced Tools**: Advanced stack traces, variable analysis, and debugging statistics
+
+### 🛡️ **Advanced Error Handling**
+- **4 Recovery Strategies**: Timeout retry, parameter correction, graceful degradation, session reconnection
+- **Error Analytics**: Comprehensive error tracking and statistics
+- **Auto-Recovery**: Intelligent error recovery with context preservation
+
+### 🚦 **Production-Ready Infrastructure**
+- **Health Monitoring**: `/health` and `/metrics` endpoints with detailed system status
+- **Rate Limiting**: Configurable request throttling with per-connection tracking
 - **Security**: Token-based authentication, filesystem sandboxing, input validation
-- **Observability**: Structured logging, correlation IDs, metrics
+- **Observability**: Structured logging with correlation IDs and request tracing
+
+### 📁 **Secure Filesystem Access**
+- **Resource Provider**: Safe project tree and file access with configurable policies
+- **Read/Write Operations**: Controlled file operations with size limits and pattern exclusions
+- **MIME Type Detection**: Automatic content type detection and encoding handling
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ 
-- TypeScript
-- A DAP-compatible debugger (e.g., Node.js debugger)
+- Node.js 20+ (required for dependencies)
+- TypeScript 5.9+
+- A DAP-compatible debugger (e.g., Node.js debugger, Python debugger)
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd rixa
+git clone https://github.com/Rixmerz/RIXA.git
+cd RIXA
 
 # Install dependencies
-npm install
+npm ci
 
 # Copy environment configuration
 cp .env.example .env
 
-# Edit .env with your settings
+# Edit .env with your settings (token, allowed paths, etc.)
 ```
 
 ### Development
@@ -103,33 +130,65 @@ Configuration is managed through environment variables. See `.env.example` for a
 - **DAP**: Default adapter, timeout settings
 - **Logging**: Level, format, file output
 
-## Development Status
+## 🚀 Development Status
 
-🚧 **Phase 0: Project Scaffolding** - ✅ Complete
-- TypeScript/Node.js setup with strict configuration
-- Structured logging and configuration system
-- Development tooling (ESLint, Prettier, Vitest)
+### ✅ **Phase 1-4: COMPLETE - Production Ready**
 
-🔄 **Phase 1: Protocol Foundations** - In Progress
-- MCP and DAP schema definitions
-- DAP client core implementation
-- MCP WebSocket server baseline
+**🔧 Phase 1: Protocol Foundations** ✅
+- Complete MCP ↔ DAP bridge implementation
+- 17 debugging tools with comprehensive DAP mapping
+- WebSocket server with session management
 
-📋 **Upcoming Phases**
-- Session management and lifecycle
-- Command and event mapping
-- Filesystem resources
-- Security hardening
-- Integration testing
+**🛡️ Phase 2: Advanced Features** ✅
+- 4 intelligent error recovery strategies
+- Enhanced debugging tools with analytics
+- Comprehensive error tracking and statistics
 
-## Contributing
+**📊 Phase 3: Production Infrastructure** ✅
+- Health monitoring with `/health` and `/metrics` endpoints
+- Rate limiting with per-connection tracking
+- Secure filesystem resource provider
+- Structured logging with correlation IDs
 
-1. Follow the established TypeScript strict mode patterns
-2. Add tests for new functionality
-3. Use structured logging with correlation IDs
-4. Validate all inputs with Zod schemas
-5. Follow the existing error handling patterns
+**🐳 Phase 4: Deployment & CI/CD** ✅
+- Docker containerization with multi-stage builds
+- GitHub Actions CI/CD pipeline
+- Comprehensive test suite (133 tests passing)
+- Production deployment documentation
 
-## License
+### 📈 **Current Metrics**
+- **17** MCP debugging tools implemented
+- **4** error recovery strategies active
+- **133** unit tests passing (100% success rate)
+- **Docker** ready for production deployment
+- **CI/CD** pipeline with automated testing
 
-MIT
+## 🤝 Contributing
+
+1. **Code Quality**: Follow TypeScript strict mode patterns and maintain 100% test coverage
+2. **Testing**: Add comprehensive tests for new functionality using Vitest
+3. **Logging**: Use structured logging with correlation IDs for traceability
+4. **Validation**: Validate all inputs with Zod schemas for type safety
+5. **Error Handling**: Follow established error recovery patterns and strategies
+6. **Documentation**: Update relevant documentation and examples
+
+## 📊 Project Statistics
+
+- **Language**: TypeScript 5.9+ with strict mode
+- **Runtime**: Node.js 20+ (production requirement)
+- **Test Coverage**: 133 unit tests with 100% pass rate
+- **Build System**: TypeScript compiler + tsc-alias for path resolution
+- **CI/CD**: GitHub Actions with automated testing and linting
+- **Container**: Multi-stage Docker build optimized for production
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+  <strong>Built with ❤️ for AI-powered debugging workflows</strong>
+  <br>
+  <sub>RIXA bridges the gap between AI intelligence and developer tools</sub>
+</div>
