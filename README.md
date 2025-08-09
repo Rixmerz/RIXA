@@ -80,6 +80,15 @@ npm run format
 # Build and start
 npm run build
 npm start
+
+# Or using Docker
+docker build -t rixmerz/rixa:latest .
+docker run --rm -p 3000:3000 \
+  -e RIXA_AUTH_ENABLED=true \
+  -e RIXA_AUTH_TOKENS=my-token \
+  -e RIXA_FS_ALLOWED_PATHS=/workspace \
+  -e RIXA_LOG_LEVEL=info \
+  rixmerz/rixa:latest
 ```
 
 ## Configuration
