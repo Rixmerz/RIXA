@@ -68,27 +68,27 @@ async function main() {
 
   // Tool catalog (17 tools)
   const tools = [
-    { name: 'debug/ping', description: 'Ping the RIXA MCP server', inputSchema: { type: 'object', properties: { message: { type: 'string' } } } },
-    { name: 'debug/version', description: 'Return RIXA version info', inputSchema: { type: 'object', properties: {} } },
-    { name: 'debug/createSession', description: 'Create and launch a new debug session', inputSchema: { type: 'object', properties: { adapter: { type: 'string' }, program: { type: 'string' }, args: { type: 'array', items: { type: 'string' } }, cwd: { type: 'string' }, env: { type: 'object' } }, required: ['adapter', 'program'] } },
-    { name: 'debug/continue', description: 'Continue execution', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, singleThread: { type: 'boolean' } }, required: ['sessionId', 'threadId'] } },
-    { name: 'debug/pause', description: 'Pause execution', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId', 'threadId'] } },
-    { name: 'debug/stepOver', description: 'Step over (next line)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, granularity: { type: 'string', enum: ['statement','line','instruction'] } }, required: ['sessionId','threadId'] } },
-    { name: 'debug/stepIn', description: 'Step into function', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, granularity: { type: 'string', enum: ['statement','line','instruction'] } }, required: ['sessionId','threadId'] } },
-    { name: 'debug/stepOut', description: 'Step out of function', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, granularity: { type: 'string', enum: ['statement','line','instruction'] } }, required: ['sessionId','threadId'] } },
-    { name: 'debug/setBreakpoints', description: 'Set breakpoints in a file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, source: { type: 'object', properties: { path: { type: 'string' }, name: { type: 'string' } }, required: ['path'] }, breakpoints: { type: 'array', items: { type: 'object', properties: { line: { type: 'number' }, column: { type: 'number' }, condition: { type: 'string' }, hitCondition: { type: 'string' }, logMessage: { type: 'string' } }, required: ['line'] } } }, required: ['sessionId','source','breakpoints'] } },
-    { name: 'debug/getThreads', description: 'Get all threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
-    { name: 'debug/getStackTrace', description: 'Get stack trace for a thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, startFrame: { type: 'number' }, levels: { type: 'number' } }, required: ['sessionId','threadId'] } },
-    { name: 'debug/getVariables', description: 'Get variables for a scope', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, variablesReference: { type: 'number' }, filter: { type: 'string', enum: ['indexed','named'] }, start: { type: 'number' }, count: { type: 'number' } }, required: ['sessionId','variablesReference'] } },
-    { name: 'debug/evaluate', description: 'Evaluate an expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' }, context: { type: 'string', enum: ['watch','repl','hover','clipboard'] } }, required: ['sessionId','expression'] } },
-    { name: 'debug/terminate', description: 'Terminate session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_ping', description: 'Ping the RIXA MCP server', inputSchema: { type: 'object', properties: { message: { type: 'string' } } } },
+    { name: 'debug_version', description: 'Return RIXA version info', inputSchema: { type: 'object', properties: {} } },
+    { name: 'debug_createSession', description: 'Create and launch a new debug session', inputSchema: { type: 'object', properties: { adapter: { type: 'string' }, program: { type: 'string' }, args: { type: 'array', items: { type: 'string' } }, cwd: { type: 'string' }, env: { type: 'object' } }, required: ['adapter', 'program'] } },
+    { name: 'debug_continue', description: 'Continue execution', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, singleThread: { type: 'boolean' } }, required: ['sessionId', 'threadId'] } },
+    { name: 'debug_pause', description: 'Pause execution', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId', 'threadId'] } },
+    { name: 'debug_stepOver', description: 'Step over (next line)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, granularity: { type: 'string', enum: ['statement','line','instruction'] } }, required: ['sessionId','threadId'] } },
+    { name: 'debug_stepIn', description: 'Step into function', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, granularity: { type: 'string', enum: ['statement','line','instruction'] } }, required: ['sessionId','threadId'] } },
+    { name: 'debug_stepOut', description: 'Step out of function', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, granularity: { type: 'string', enum: ['statement','line','instruction'] } }, required: ['sessionId','threadId'] } },
+    { name: 'debug_setBreakpoints', description: 'Set breakpoints in a file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, source: { type: 'object', properties: { path: { type: 'string' }, name: { type: 'string' } }, required: ['path'] }, breakpoints: { type: 'array', items: { type: 'object', properties: { line: { type: 'number' }, column: { type: 'number' }, condition: { type: 'string' }, hitCondition: { type: 'string' }, logMessage: { type: 'string' } }, required: ['line'] } } }, required: ['sessionId','source','breakpoints'] } },
+    { name: 'debug_getThreads', description: 'Get all threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getStackTrace', description: 'Get stack trace for a thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, startFrame: { type: 'number' }, levels: { type: 'number' } }, required: ['sessionId','threadId'] } },
+    { name: 'debug_getVariables', description: 'Get variables for a scope', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, variablesReference: { type: 'number' }, filter: { type: 'string', enum: ['indexed','named'] }, start: { type: 'number' }, count: { type: 'number' } }, required: ['sessionId','variablesReference'] } },
+    { name: 'debug_evaluate', description: 'Evaluate an expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' }, context: { type: 'string', enum: ['watch','repl','hover','clipboard'] } }, required: ['sessionId','expression'] } },
+    { name: 'debug_terminate', description: 'Terminate session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     // Enhanced
-    { name: 'debug/getEnhancedStackTrace', description: 'Enhanced stack trace with scopes and variables', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, includeScopes: { type: 'boolean' }, includeVariables: { type: 'boolean' } }, required: ['sessionId','threadId'] } },
-    { name: 'debug/getEnhancedVariables', description: 'Enhanced variables with hierarchy', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, variablesReference: { type: 'number' }, maxDepth: { type: 'number' } }, required: ['sessionId','variablesReference'] } },
-    { name: 'debug/evaluateEnhanced', description: 'Enhanced evaluate', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' }, context: { type: 'string', enum: ['watch','repl','hover','clipboard'] } }, required: ['sessionId','expression'] } },
+    { name: 'debug_getEnhancedStackTrace', description: 'Enhanced stack trace with scopes and variables', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, includeScopes: { type: 'boolean' }, includeVariables: { type: 'boolean' } }, required: ['sessionId','threadId'] } },
+    { name: 'debug_getEnhancedVariables', description: 'Enhanced variables with hierarchy', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, variablesReference: { type: 'number' }, maxDepth: { type: 'number' } }, required: ['sessionId','variablesReference'] } },
+    { name: 'debug_evaluateEnhanced', description: 'Enhanced evaluate', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' }, context: { type: 'string', enum: ['watch','repl','hover','clipboard'] } }, required: ['sessionId','expression'] } },
     // Error stats
-    { name: 'debug/getErrorStats', description: 'Get error statistics', inputSchema: { type: 'object', properties: {}, required: [] } },
-    { name: 'debug/resetErrorStats', description: 'Reset error statistics', inputSchema: { type: 'object', properties: {}, required: [] } }
+    { name: 'debug_getErrorStats', description: 'Get error statistics', inputSchema: { type: 'object', properties: {}, required: [] } },
+    { name: 'debug_resetErrorStats', description: 'Reset error statistics', inputSchema: { type: 'object', properties: {}, required: [] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -98,13 +98,13 @@ async function main() {
 
     try {
       switch (name) {
-        case 'debug/ping':
+        case 'debug_ping':
           return { content: [{ type: 'text', text: String(args?.message ?? 'pong') }] };
 
-        case 'debug/version':
+        case 'debug_version':
           return { content: [{ type: 'text', text: 'RIXA 0.1.0' }] };
 
-        case 'debug/createSession': {
+        case 'debug_createSession': {
           const adapter = String(args?.adapter || 'node');
           const program = String(args?.program);
           const programArgs = Array.isArray(args?.args) ? (args.args as string[]) : [];
@@ -143,7 +143,7 @@ async function main() {
           };
         }
 
-        case 'debug/getThreads': {
+        case 'debug_getThreads': {
           const sessionId = String(args?.sessionId);
           const session = sessionManager.getSession(sessionId);
           if (!session) return { content: [{ type: 'text', text: `Session not found: ${sessionId}` }] };
@@ -151,7 +151,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/getStackTrace': {
+        case 'debug_getStackTrace': {
           const sessionId = String(args?.sessionId);
           const threadId = Number(args?.threadId);
           const startFrame = args?.startFrame ? Number(args.startFrame) : undefined;
@@ -162,7 +162,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/continue': {
+        case 'debug_continue': {
           const sessionId = String(args?.sessionId);
           const threadId = Number(args?.threadId);
           const session = sessionManager.getSession(sessionId);
@@ -171,7 +171,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/pause': {
+        case 'debug_pause': {
           const sessionId = String(args?.sessionId);
           const threadId = Number(args?.threadId);
           const session = sessionManager.getSession(sessionId);
@@ -180,7 +180,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/stepOver': {
+        case 'debug_stepOver': {
           const sessionId = String(args?.sessionId);
           const threadId = Number(args?.threadId);
           const session = sessionManager.getSession(sessionId);
@@ -189,7 +189,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/stepIn': {
+        case 'debug_stepIn': {
           const sessionId = String(args?.sessionId);
           const threadId = Number(args?.threadId);
           const session = sessionManager.getSession(sessionId);
@@ -198,7 +198,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/stepOut': {
+        case 'debug_stepOut': {
           const sessionId = String(args?.sessionId);
           const threadId = Number(args?.threadId);
           const session = sessionManager.getSession(sessionId);
@@ -207,7 +207,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/setBreakpoints': {
+        case 'debug_setBreakpoints': {
           const sessionId = String(args?.sessionId);
           const source = args?.source as { path: string; name?: string };
           const breakpoints = Array.isArray(args?.breakpoints) ? args.breakpoints : [];
@@ -217,7 +217,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/getVariables': {
+        case 'debug_getVariables': {
           const sessionId = String(args?.sessionId);
           const variablesReference = Number(args?.variablesReference);
           const filter = args?.filter as 'indexed' | 'named' | undefined;
@@ -229,7 +229,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/evaluate': {
+        case 'debug_evaluate': {
           const sessionId = String(args?.sessionId);
           const expression = String(args?.expression);
           const frameId = args?.frameId ? Number(args.frameId) : undefined;
@@ -240,7 +240,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
         }
 
-        case 'debug/getEnhancedStackTrace': {
+        case 'debug_getEnhancedStackTrace': {
           const sessionId = String(args?.sessionId);
           const threadId = Number(args?.threadId);
           const includeScopes = !!args?.includeScopes;
@@ -251,7 +251,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(frames, null, 2) }] };
         }
 
-        case 'debug/getEnhancedVariables': {
+        case 'debug_getEnhancedVariables': {
           const sessionId = String(args?.sessionId);
           const variablesReference = Number(args?.variablesReference);
           const maxDepth = args?.maxDepth ? Number(args.maxDepth) : 3;
@@ -261,7 +261,7 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(vars, null, 2) }] };
         }
 
-        case 'debug/evaluateEnhanced': {
+        case 'debug_evaluateEnhanced': {
           const sessionId = String(args?.sessionId);
           const expression = String(args?.expression);
           const frameId = args?.frameId ? Number(args.frameId) : undefined;
@@ -272,11 +272,11 @@ async function main() {
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
-        case 'debug/getErrorStats': {
+        case 'debug_getErrorStats': {
           return { content: [{ type: 'text', text: JSON.stringify(errorStats, null, 2) }] };
         }
 
-        case 'debug/resetErrorStats': {
+        case 'debug_resetErrorStats': {
           errorStats.totalErrors = 0;
           return { content: [{ type: 'text', text: 'Error stats reset' }] };
         }
