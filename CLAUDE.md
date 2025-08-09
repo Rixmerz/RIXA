@@ -43,7 +43,8 @@ Enhanced helpers (rich responses built on top of DAP):
 Diagnostics (optional):
 - debug_validateEnvironment (system/adapters check)
 - debug_listAdapters, debug_testAdapter(lang), debug_prerequisites(lang)
-- debug_diagnose(program?, cwd?)
+- debug_diagnose(program?, cwd?), debug_checkPorts(lang?)
+- debug_setup(installMissing?, lang?) — Wizard no interactivo con pasos
 - debug_health()
 - debug_getErrorStats, debug_resetErrorStats
 

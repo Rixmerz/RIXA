@@ -13,6 +13,7 @@ import os from 'os';
 import { existsSync } from 'fs';
 import { access } from 'fs/promises';
 import { spawnSync } from 'child_process';
+import { createServer } from 'node:net';
 
 
 // Do not log to stdout/stderr in stdio mode; MCP expects only JSON-RPC
@@ -79,6 +80,9 @@ async function main() {
   } as const;
 
   function checkCmd(cmd: string, args: ReadonlyArray<string> | string[]): { ok: boolean; stdout?: string; stderr?: string } {
+    // Note: child_process.spawnSync returns status 0 when command exists and succeeds.
+    // We keep output for detailed diagnostics.
+
     try {
       const r = spawnSync(cmd, args, { encoding: 'utf8' });
       return { ok: r.status === 0, stdout: r.stdout?.trim(), stderr: r.stderr?.trim() };
@@ -89,6 +93,16 @@ async function main() {
 
   async function checkPathReadable(p: string): Promise<boolean> {
     try { await access(p); return true; } catch { return false; }
+  }
+
+  async function isPortFree(port: number, host = '127.0.0.1'): Promise<boolean> {
+    return new Promise(resolve => {
+      const server = createServer();
+      server.once('error', () => resolve(false));
+      server.listen(port, host, () => {
+        server.close(() => resolve(true));
+      });
+    });
   }
 
   // Tool catalog (17 tools)
@@ -120,7 +134,9 @@ async function main() {
     { name: 'debug_testAdapter', description: 'Test a specific adapter availability', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','go'] } }, required: ['lang'] } },
     { name: 'debug_prerequisites', description: 'Show prerequisites and install hints for a language', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','go'] } }, required: ['lang'] } },
     { name: 'debug_diagnose', description: 'Run a full diagnostic suite', inputSchema: { type: 'object', properties: { program: { type: 'string' }, cwd: { type: 'string' } } } },
-    { name: 'debug_health', description: 'Quick health summary', inputSchema: { type: 'object', properties: {} } }
+    { name: 'debug_health', description: 'Quick health summary', inputSchema: { type: 'object', properties: {} } },
+    { name: 'debug_checkPorts', description: 'Check common debugger ports availability', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','go'] } } } },
+    { name: 'debug_setup', description: 'Non-interactive setup wizard (dry run or fixes)', inputSchema: { type: 'object', properties: { installMissing: { type: 'boolean' }, lang: { type: 'string', enum: ['node','python','go'] } } } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -142,6 +158,8 @@ async function main() {
           const programArgs = Array.isArray(args?.args) ? (args.args as string[]) : [];
           const cwd = args?.cwd ? String(args.cwd) : process.cwd();
           const env = (args?.env && typeof args.env === 'object') ? (args.env as Record<string, string>) : undefined;
+          const verbose = !!args?.verbose;
+          const dryRun = !!args?.dryRun;
 
           // Preflight validation
           const checks: string[] = [];
@@ -155,6 +173,19 @@ async function main() {
           }
           if (checks.length) {
             return { content: [{ type: 'text', text: JSON.stringify({ error: 'Preflight failed', issues: checks, recommendation: `Run debug_validateEnvironment or debug_prerequisites { lang: "${adapter}" }` }, null, 2) }] };
+          }
+
+          if (verbose) {
+            const ports = adapter === 'node' ? [9229] : adapter === 'python' ? [5678] : adapter === 'go' ? [38697] : [];
+            const portStates = await Promise.all(ports.map(async p => ({ port: p, free: await isPortFree(p) })));
+            checks.push(...portStates.filter(s => !s.free).map(s => `Port ${s.port} is busy`));
+            if (checks.length) {
+              return { content: [{ type: 'text', text: JSON.stringify({ error: 'Preflight warnings', issues: checks, hint: 'Use debug_checkPorts to inspect and free ports' }, null, 2) }] };
+            }
+          }
+
+          if (dryRun) {
+            return { content: [{ type: 'text', text: JSON.stringify({ dryRun: true, wouldLaunch: { adapter, program, args: programArgs, cwd } }, null, 2) }] };
           }
 
           try {
@@ -397,7 +428,47 @@ async function main() {
         case 'debug_health': {
           const missing = Object.values(adapters).filter(v => !checkCmd(v.cmd, v.args).ok).length;
           const status = missing ? 'degraded' : 'healthy';
-          return { content: [{ type: 'text', text: JSON.stringify({ status, missingAdapters: missing }, null, 2) }] };
+          const ports = { node: 9229, python: 5678, go: 38697 } as const;
+          const portCheck = await Promise.all(Object.entries(ports).map(async ([k,p]) => ({ lang: k, port: p, free: await isPortFree(p) })));
+          return { content: [{ type: 'text', text: JSON.stringify({ status, missingAdapters: missing, ports: portCheck }, null, 2) }] };
+        }
+
+        case 'debug_checkPorts': {
+          const lang = args?.lang as 'node'|'python'|'go'|undefined;
+          const ports = { node: [9229], python: [5678], go: [38697] } as const;
+          const list = lang ? ports[lang] ?? [] : [...new Set(Object.values(ports).flat())];
+          const results = await Promise.all(list.map(async p => ({ port: p, free: await isPortFree(p) })));
+          return { content: [{ type: 'text', text: JSON.stringify({ lang: lang ?? 'all', results }, null, 2) }] };
+        }
+
+        case 'debug_setup': {
+          const installMissing = !!args?.installMissing;
+          const lang = args?.lang as 'node'|'python'|'go'|undefined;
+          const steps: string[] = [];
+          const issues: string[] = [];
+
+          // Check adapters
+          const toCheck = lang ? [lang] : (Object.keys(adapters) as Array<'node'|'python'|'go'>);
+          for (const l of toCheck) {
+            const a = adapters[l];
+            const r = checkCmd(a.cmd, a.args);
+            if (!r.ok) {
+              issues.push(`${l} missing (${a.prerequisite}). Install: ${a.install}`);
+              if (installMissing) steps.push(`Would run: ${a.install}`);
+            }
+          }
+
+          // Check ports
+          const ports = { node: [9229], python: [5678], go: [38697] } as const;
+          for (const [k, list] of Object.entries(ports)) {
+            for (const p of list) {
+              const free = await isPortFree(p);
+              if (!free) issues.push(`Port ${p} in use (${k})`);
+            }
+          }
+
+          const result = { status: issues.length ? 'needs_attention' : 'ready', issues, steps };
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         case 'debug_terminate': {
