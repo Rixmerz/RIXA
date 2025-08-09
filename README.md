@@ -163,6 +163,131 @@ Configuration is managed through environment variables. See `.env.example` for a
 - **Docker** ready for production deployment
 - **CI/CD** pipeline with automated testing
 
+## 🔗 MCP Integration
+
+### Claude Desktop Setup
+
+RIXA integrates seamlessly with Claude Desktop and other MCP clients. Follow these steps to connect RIXA with Claude Desktop:
+
+#### 📍 Configuration File Location
+
+The Claude Desktop configuration file location varies by operating system:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+#### 🚀 Quick Setup
+
+1. **Build RIXA**:
+   ```bash
+   cd /path/to/RIXA
+   npm run build
+   ```
+
+2. **Create/Edit Claude Desktop Config**:
+   ```bash
+   # macOS
+   mkdir -p ~/Library/Application\ Support/Claude
+   nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
+
+   # Windows (PowerShell)
+   New-Item -ItemType Directory -Force -Path "$env:APPDATA\Claude"
+   notepad "$env:APPDATA\Claude\claude_desktop_config.json"
+
+   # Linux
+   mkdir -p ~/.config/Claude
+   nano ~/.config/Claude/claude_desktop_config.json
+   ```
+
+3. **Add RIXA Configuration**:
+
+   **Basic Configuration** (recommended for most users):
+   ```json
+   {
+     "mcpServers": {
+       "rixa": {
+         "command": "node",
+         "args": ["/path/to/your/RIXA/dist/index.js"],
+         "env": {
+           "RIXA_AUTH_ENABLED": "true",
+           "RIXA_AUTH_TOKENS": "your-secure-token-here",
+           "RIXA_FS_ALLOWED_PATHS": "/path/to/your/projects",
+           "RIXA_LOG_LEVEL": "info"
+         }
+       }
+     }
+   }
+   ```
+
+   **Advanced Configuration** (for power users):
+   ```json
+   {
+     "mcpServers": {
+       "rixa": {
+         "command": "node",
+         "args": ["/path/to/your/RIXA/dist/index.js"],
+         "env": {
+           "RIXA_AUTH_ENABLED": "true",
+           "RIXA_AUTH_TOKENS": "primary-token,backup-token",
+           "RIXA_FS_ALLOWED_PATHS": "/Users/yourname/projects:/Users/yourname/workspace",
+           "RIXA_FS_READ_ONLY": "false",
+           "RIXA_FS_MAX_FILE_SIZE": "10485760",
+           "RIXA_FS_EXCLUDE_PATTERNS": "node_modules/**,*.log,.git/**",
+           "RIXA_RATE_LIMIT_ENABLED": "true",
+           "RIXA_RATE_LIMIT_MAX_REQUESTS": "100",
+           "RIXA_LOG_LEVEL": "info"
+         }
+       }
+     }
+   }
+   ```
+
+4. **Customize Configuration**:
+   - Replace `/path/to/your/RIXA/dist/index.js` with your actual RIXA installation path
+   - Replace `your-secure-token-here` with a strong, unique token
+   - Update `RIXA_FS_ALLOWED_PATHS` with directories you want to debug
+   - Adjust other settings as needed
+
+5. **Restart Claude Desktop**
+
+#### ✅ Verification
+
+After setup, verify the integration is working:
+
+1. **Open Claude Desktop**
+2. **Ask Claude**: "What debugging tools do you have available?"
+3. **Expected Response**: Claude should list RIXA's 17 debugging tools:
+   - `debug/createSession` - Create new debugging session
+   - `debug/setBreakpoints` - Set breakpoints in code
+   - `debug/continue` - Continue execution
+   - `debug/stepOver` - Step over current line
+   - `debug/getStackTrace` - Get current call stack
+   - And 12 more debugging tools...
+
+#### 🔧 Troubleshooting
+
+**Common Issues and Solutions:**
+
+| Issue | Solution |
+|-------|----------|
+| "RIXA tools not available" | Check file paths in config, ensure RIXA is built (`npm run build`) |
+| "Authentication failed" | Verify `RIXA_AUTH_TOKENS` matches your token |
+| "Permission denied" | Check `RIXA_FS_ALLOWED_PATHS` includes your project directory |
+| "Connection timeout" | Increase `RIXA_DAP_TIMEOUT` or check if port 3000 is available |
+| "File not found errors" | Ensure paths use forward slashes, even on Windows |
+
+**Debug Steps:**
+1. **Check RIXA logs**: Look for startup errors in console or log file
+2. **Test RIXA directly**: Run `npm start` and check `http://localhost:3000/health`
+3. **Validate JSON**: Ensure configuration file has valid JSON syntax
+4. **Check permissions**: Ensure Claude Desktop can access RIXA installation directory
+
+**Configuration Templates:**
+- See `claude_desktop_config.json` for full configuration template with comments
+- See `examples/claude-desktop-basic.json` for minimal setup
+- See `examples/claude-desktop-advanced.json` for production setup
+
 ## 🤝 Contributing
 
 1. **Code Quality**: Follow TypeScript strict mode patterns and maintain 100% test coverage

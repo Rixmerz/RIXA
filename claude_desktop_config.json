@@ -1,0 +1,71 @@
+{
+  "mcpServers": {
+    "rixa": {
+      // Command to run RIXA server
+      "command": "node",
+      
+      // Path to RIXA's built JavaScript file
+      // IMPORTANT: Replace with your actual RIXA installation path
+      "args": ["/path/to/your/RIXA/dist/index.js"],
+      
+      // Environment variables for RIXA configuration
+      "env": {
+        // === AUTHENTICATION SETTINGS ===
+        // Enable/disable token-based authentication
+        "RIXA_AUTH_ENABLED": "true",
+        
+        // Comma-separated list of valid authentication tokens
+        // SECURITY: Use strong, unique tokens in production
+        "RIXA_AUTH_TOKENS": "your-secure-token-here,backup-token-2024",
+        
+        // === SERVER SETTINGS ===
+        // Port for RIXA server (default: 3000)
+        "RIXA_PORT": "3000",
+        
+        // Host binding (default: localhost for security)
+        "RIXA_HOST": "localhost",
+        
+        // === FILESYSTEM SECURITY ===
+        // Colon-separated list of allowed filesystem paths
+        // SECURITY: Restrict to only necessary directories
+        "RIXA_FS_ALLOWED_PATHS": "/Users/yourname/projects:/Users/yourname/workspace",
+        
+        // Enable read-only mode (true = no file modifications allowed)
+        "RIXA_FS_READ_ONLY": "false",
+        
+        // Maximum file size in bytes (10MB = 10485760)
+        "RIXA_FS_MAX_FILE_SIZE": "10485760",
+        
+        // File patterns to exclude (comma-separated)
+        "RIXA_FS_EXCLUDE_PATTERNS": "node_modules/**,*.log,.git/**,dist/**",
+        
+        // === RATE LIMITING ===
+        // Enable request rate limiting
+        "RIXA_RATE_LIMIT_ENABLED": "true",
+        
+        // Maximum requests per time window
+        "RIXA_RATE_LIMIT_MAX_REQUESTS": "100",
+        
+        // Time window in milliseconds (60000 = 1 minute)
+        "RIXA_RATE_LIMIT_WINDOW_MS": "60000",
+        
+        // === DEBUGGING SETTINGS ===
+        // Default debug adapter timeout in milliseconds
+        "RIXA_DAP_TIMEOUT": "30000",
+        
+        // Maximum number of concurrent debug sessions
+        "RIXA_MAX_SESSIONS": "5",
+        
+        // === LOGGING ===
+        // Log level: error, warn, info, debug
+        "RIXA_LOG_LEVEL": "info",
+        
+        // Log format: json or text
+        "RIXA_LOG_FORMAT": "json",
+        
+        // Optional: Log file path (omit for console only)
+        "RIXA_LOG_FILE": "/path/to/rixa.log"
+      }
+    }
+  }
+}
