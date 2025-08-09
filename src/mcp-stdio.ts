@@ -9,6 +9,11 @@ import {
 
 import { SessionManager } from './core/session.js';
 import { EnhancedDebugTools } from './core/enhanced-tools.js';
+import os from 'os';
+import { existsSync } from 'fs';
+import { access } from 'fs/promises';
+import { spawnSync } from 'child_process';
+
 
 // Do not log to stdout/stderr in stdio mode; MCP expects only JSON-RPC
 const noop = () => {};
@@ -66,6 +71,26 @@ async function main() {
   const enhanced = new EnhancedDebugTools(logger as any);
   const errorStats = { totalErrors: 0 };
 
+  // Diagnostics helpers
+  const adapters = {
+    node: { cmd: 'node', args: ['--version'], prerequisite: 'node (>=16)', install: 'https://nodejs.org' },
+    python: { cmd: 'python', args: ['-m', 'debugpy', '--version'], prerequisite: 'python + debugpy', install: 'pip install debugpy' },
+    go: { cmd: 'dlv', args: ['version'], prerequisite: 'delve (dlv)', install: 'go install github.com/go-delve/delve/cmd/dlv@latest' },
+  } as const;
+
+  function checkCmd(cmd: string, args: ReadonlyArray<string> | string[]): { ok: boolean; stdout?: string; stderr?: string } {
+    try {
+      const r = spawnSync(cmd, args, { encoding: 'utf8' });
+      return { ok: r.status === 0, stdout: r.stdout?.trim(), stderr: r.stderr?.trim() };
+    } catch (e) {
+      return { ok: false, stderr: (e as Error).message };
+    }
+  }
+
+  async function checkPathReadable(p: string): Promise<boolean> {
+    try { await access(p); return true; } catch { return false; }
+  }
+
   // Tool catalog (17 tools)
   const tools = [
     { name: 'debug_ping', description: 'Ping the RIXA MCP server', inputSchema: { type: 'object', properties: { message: { type: 'string' } } } },
@@ -88,7 +113,14 @@ async function main() {
     { name: 'debug_evaluateEnhanced', description: 'Enhanced evaluate', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' }, context: { type: 'string', enum: ['watch','repl','hover','clipboard'] } }, required: ['sessionId','expression'] } },
     // Error stats
     { name: 'debug_getErrorStats', description: 'Get error statistics', inputSchema: { type: 'object', properties: {}, required: [] } },
-    { name: 'debug_resetErrorStats', description: 'Reset error statistics', inputSchema: { type: 'object', properties: {}, required: [] } }
+    { name: 'debug_resetErrorStats', description: 'Reset error statistics', inputSchema: { type: 'object', properties: {}, required: [] } },
+    // Diagnostics
+    { name: 'debug_validateEnvironment', description: 'Validate environment and prerequisites', inputSchema: { type: 'object', properties: { program: { type: 'string' }, cwd: { type: 'string' } } } },
+    { name: 'debug_listAdapters', description: 'List supported debug adapters with availability', inputSchema: { type: 'object', properties: {} } },
+    { name: 'debug_testAdapter', description: 'Test a specific adapter availability', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','go'] } }, required: ['lang'] } },
+    { name: 'debug_prerequisites', description: 'Show prerequisites and install hints for a language', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','go'] } }, required: ['lang'] } },
+    { name: 'debug_diagnose', description: 'Run a full diagnostic suite', inputSchema: { type: 'object', properties: { program: { type: 'string' }, cwd: { type: 'string' } } } },
+    { name: 'debug_health', description: 'Quick health summary', inputSchema: { type: 'object', properties: {} } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -111,36 +143,55 @@ async function main() {
           const cwd = args?.cwd ? String(args.cwd) : process.cwd();
           const env = (args?.env && typeof args.env === 'object') ? (args.env as Record<string, string>) : undefined;
 
-          const session = await sessionManager.createSession({
-            adapterConfig: {
-              transport: {
-                type: 'stdio',
-                command: getAdapterCommand(adapter),
-                args: getAdapterArgs(adapter),
+          // Preflight validation
+          const checks: string[] = [];
+          if (!existsSync(program)) checks.push(`Program not found: ${program}`);
+          if (!(await checkPathReadable(cwd))) checks.push(`CWD not accessible: ${cwd}`);
+          const adapterCheck = adapters[adapter as keyof typeof adapters];
+          if (!adapterCheck) checks.push(`Unsupported adapter: ${adapter}`);
+          else {
+            const probe = checkCmd(adapterCheck.cmd, adapterCheck.args);
+            if (!probe.ok) checks.push(`Adapter unavailable: ${adapter} (${adapterCheck.prerequisite}). Install: ${adapterCheck.install}. Details: ${probe.stderr || probe.stdout || 'n/a'}`);
+          }
+          if (checks.length) {
+            return { content: [{ type: 'text', text: JSON.stringify({ error: 'Preflight failed', issues: checks, recommendation: `Run debug_validateEnvironment or debug_prerequisites { lang: "${adapter}" }` }, null, 2) }] };
+          }
+
+          try {
+            const session = await sessionManager.createSession({
+              adapterConfig: {
+                transport: {
+                  type: 'stdio',
+                  command: getAdapterCommand(adapter),
+                  args: getAdapterArgs(adapter),
+                },
               },
-            },
-            launchConfig: {
-              type: adapter,
-              program,
-              args: programArgs,
-              cwd,
-              env: { ...process.env, ...(env || {}) },
-              console: 'integratedTerminal',
-              internalConsoleOptions: 'neverOpen',
-            },
-            name: `Debug Session for ${program}`,
-            workspaceRoot: cwd,
-          });
+              launchConfig: {
+                type: adapter,
+                program,
+                args: programArgs,
+                cwd,
+                env: { ...process.env, ...(env || {}) },
+                console: 'integratedTerminal',
+                internalConsoleOptions: 'neverOpen',
+              },
+              name: `Debug Session for ${program}`,
+              workspaceRoot: cwd,
+            });
 
-          await session.initialize();
-          await session.launch();
+            await session.initialize();
+            await session.launch();
 
-          return {
-            content: [
-              { type: 'text', text: 'Debug session created successfully' },
-              { type: 'text', text: JSON.stringify({ sessionId: session.id, state: session.getState() }, null, 2) }
-            ]
-          };
+            return {
+              content: [
+                { type: 'text', text: 'Debug session created successfully' },
+                { type: 'text', text: JSON.stringify({ sessionId: session.id, state: session.getState() }, null, 2) }
+              ]
+            };
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return { content: [{ type: 'text', text: JSON.stringify({ error: 'Failed to initialize debug session', details: msg, hints: [ 'Verify adapter availability via debug_testAdapter', 'Check program path and permissions', 'Provide absolute paths for program and cwd' ] }, null, 2) }] };
+          }
         }
 
         case 'debug_getThreads': {
@@ -281,7 +332,75 @@ async function main() {
           return { content: [{ type: 'text', text: 'Error stats reset' }] };
         }
 
-        case 'debug/terminate': {
+        case 'debug_validateEnvironment': {
+          const info = {
+            system: {
+              os: `${os.type()} ${os.release()}`,
+              rixa_version: '0.1.0',
+            },
+            permissions: {
+              file_access: await checkPathReadable(args?.cwd || process.cwd()),
+            },
+            adapters: Object.fromEntries(
+              Object.entries(adapters).map(([k, v]) => {
+                const r = checkCmd(v.cmd, v.args);
+                return [k, { status: r.ok ? 'available' : 'missing', detail: r.ok ? r.stdout : r.stderr, prerequisite: v.prerequisite, install_cmd: v.install }];
+              })
+            ),
+          };
+          return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] };
+        }
+
+        case 'debug_listAdapters': {
+          const list = Object.entries(adapters).map(([k, v]) => ({
+            name: k,
+            available: checkCmd(v.cmd, v.args).ok,
+            prerequisite: v.prerequisite,
+            install_cmd: v.install,
+          }));
+          return { content: [{ type: 'text', text: JSON.stringify(list, null, 2) }] };
+        }
+
+        case 'debug_testAdapter': {
+          const lang = String(args?.lang);
+          const v = adapters[lang as keyof typeof adapters];
+          if (!v) return { content: [{ type: 'text', text: `Unsupported language: ${lang}` }] };
+          const r = checkCmd(v.cmd, v.args);
+          return { content: [{ type: 'text', text: JSON.stringify({ lang, ok: r.ok, stdout: r.stdout, stderr: r.stderr }, null, 2) }] };
+        }
+
+        case 'debug_prerequisites': {
+          const lang = String(args?.lang);
+          const v = adapters[lang as keyof typeof adapters];
+          if (!v) return { content: [{ type: 'text', text: `Unsupported language: ${lang}` }] };
+          return { content: [{ type: 'text', text: JSON.stringify({ lang, prerequisite: v.prerequisite, install_cmd: v.install }, null, 2) }] };
+        }
+
+        case 'debug_diagnose': {
+          const program = args?.program ? String(args.program) : undefined;
+          const cwd = args?.cwd ? String(args.cwd) : process.cwd();
+          const diag = {
+            program: program || '(none provided)',
+            program_exists: program ? existsSync(program) : false,
+            cwd,
+            cwd_accessible: await checkPathReadable(cwd),
+            adapters: Object.fromEntries(
+              Object.entries(adapters).map(([k, v]) => {
+                const r = checkCmd(v.cmd, v.args);
+                return [k, { ok: r.ok, detail: r.ok ? r.stdout : r.stderr }];
+              })
+            )
+          };
+          return { content: [{ type: 'text', text: JSON.stringify(diag, null, 2) }] };
+        }
+
+        case 'debug_health': {
+          const missing = Object.values(adapters).filter(v => !checkCmd(v.cmd, v.args).ok).length;
+          const status = missing ? 'degraded' : 'healthy';
+          return { content: [{ type: 'text', text: JSON.stringify({ status, missingAdapters: missing }, null, 2) }] };
+        }
+
+        case 'debug_terminate': {
           const sessionId = String(args?.sessionId);
           await sessionManager.terminateSession(sessionId);
           return { content: [{ type: 'text', text: `Terminated session ${sessionId}` }] };

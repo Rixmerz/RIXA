@@ -41,6 +41,10 @@ Enhanced helpers (rich responses built on top of DAP):
 - debug_evaluateEnhanced (!sessionId, !expression, frameId?, context?)
 
 Diagnostics (optional):
+- debug_validateEnvironment (system/adapters check)
+- debug_listAdapters, debug_testAdapter(lang), debug_prerequisites(lang)
+- debug_diagnose(program?, cwd?)
+- debug_health()
 - debug_getErrorStats, debug_resetErrorStats
 
 ## Typical debug workflow (Claude prompts)
