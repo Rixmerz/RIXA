@@ -52,9 +52,7 @@ export class FilesystemResourceProvider {
     private logger: Logger
   ) {
     // Resolve and normalize allowed paths
-    this.allowedPaths = new Set(
-      config.allowedPaths.map(path => resolve(path))
-    );
+    this.allowedPaths = new Set(config.allowedPaths.map(path => resolve(path)));
 
     this.excludePatterns = config.excludePatterns;
 
@@ -179,7 +177,11 @@ export class FilesystemResourceProvider {
   /**
    * Write file content (if not read-only)
    */
-  async writeFile(uri: string, content: string, encoding: 'utf8' | 'base64' = 'utf8'): Promise<void> {
+  async writeFile(
+    uri: string,
+    content: string,
+    encoding: 'utf8' | 'base64' = 'utf8'
+  ): Promise<void> {
     if (this.config.readOnly) {
       throw new RixaError(ErrorType.FILESYSTEM_ERROR, 'Filesystem is read-only');
     }
@@ -219,12 +221,7 @@ export class FilesystemResourceProvider {
     dirPath: string,
     options: ListDirectoryOptions = {}
   ): Promise<FileSystemEntry[]> {
-    const {
-      recursive = false,
-      maxDepth = 10,
-      includeHidden = false,
-      pattern,
-    } = options;
+    const { recursive = false, maxDepth = 10, includeHidden = false, pattern } = options;
 
     this.validatePath(dirPath);
 
@@ -387,7 +384,7 @@ export class FilesystemResourceProvider {
       xml: 'application/xml',
       yaml: 'application/yaml',
       yml: 'application/yaml',
-      
+
       // Code files
       js: 'application/javascript',
       ts: 'application/typescript',
@@ -404,7 +401,7 @@ export class FilesystemResourceProvider {
       rb: 'text/x-ruby',
       go: 'text/x-go',
       rs: 'text/x-rust',
-      
+
       // Web files
       html: 'text/html',
       htm: 'text/html',
@@ -412,25 +409,25 @@ export class FilesystemResourceProvider {
       scss: 'text/x-scss',
       sass: 'text/x-sass',
       less: 'text/x-less',
-      
+
       // Config files
       ini: 'text/plain',
       cfg: 'text/plain',
       conf: 'text/plain',
       env: 'text/plain',
-      
+
       // Images
       png: 'image/png',
       jpg: 'image/jpeg',
       jpeg: 'image/jpeg',
       gif: 'image/gif',
       svg: 'image/svg+xml',
-      
+
       // Archives
       zip: 'application/zip',
       tar: 'application/x-tar',
       gz: 'application/gzip',
-      
+
       // Binary
       exe: 'application/octet-stream',
       bin: 'application/octet-stream',
@@ -442,11 +439,13 @@ export class FilesystemResourceProvider {
   }
 
   private isBinaryMimeType(mimeType: string): boolean {
-    return !mimeType.startsWith('text/') && 
-           !mimeType.includes('json') && 
-           !mimeType.includes('xml') && 
-           !mimeType.includes('yaml') && 
-           !mimeType.includes('javascript') && 
-           !mimeType.includes('typescript');
+    return (
+      !mimeType.startsWith('text/') &&
+      !mimeType.includes('json') &&
+      !mimeType.includes('xml') &&
+      !mimeType.includes('yaml') &&
+      !mimeType.includes('javascript') &&
+      !mimeType.includes('typescript')
+    );
   }
 }

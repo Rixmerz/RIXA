@@ -130,7 +130,10 @@ export class HealthMonitor extends EventEmitter {
         // Update overall status
         if (result.status === HealthStatus.UNHEALTHY) {
           overallStatus = HealthStatus.UNHEALTHY;
-        } else if (result.status === HealthStatus.DEGRADED && overallStatus === HealthStatus.HEALTHY) {
+        } else if (
+          result.status === HealthStatus.DEGRADED &&
+          overallStatus === HealthStatus.HEALTHY
+        ) {
           overallStatus = HealthStatus.DEGRADED;
         }
       } catch (error) {
@@ -203,8 +206,12 @@ export class HealthMonitor extends EventEmitter {
     const healthResult = await this.runHealthChecks();
     const metrics = this.getMetrics();
 
-    const statusCode = healthResult.status === HealthStatus.HEALTHY ? 200 : 
-                      healthResult.status === HealthStatus.DEGRADED ? 200 : 503;
+    const statusCode =
+      healthResult.status === HealthStatus.HEALTHY
+        ? 200
+        : healthResult.status === HealthStatus.DEGRADED
+          ? 200
+          : 503;
 
     return {
       status: statusCode,
@@ -322,7 +329,7 @@ export class HealthMonitor extends EventEmitter {
     this.addHealthCheck('memory', async () => {
       const memUsage = process.memoryUsage();
       const percentage = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-      
+
       let status = HealthStatus.HEALTHY;
       let message = `Memory usage: ${percentage.toFixed(1)}%`;
 
@@ -352,7 +359,7 @@ export class HealthMonitor extends EventEmitter {
       this.addHealthCheck('sessions', async () => {
         const sessions = this.sessionManager!.getSessions();
         const activeSessions = this.sessionManager!.getActiveSessionsCount();
-        
+
         let status = HealthStatus.HEALTHY;
         let message = `${activeSessions} active sessions`;
 
@@ -378,7 +385,7 @@ export class HealthMonitor extends EventEmitter {
     if (this.rateLimiter) {
       this.addHealthCheck('rateLimiter', async () => {
         const stats = this.rateLimiter!.getGlobalStats();
-        
+
         let status = HealthStatus.HEALTHY;
         let message = `${stats.activeRateLimits} active rate limits`;
 
@@ -398,11 +405,20 @@ export class HealthMonitor extends EventEmitter {
     }
   }
 
-  private getOverallMessage(status: HealthStatus, checks: Record<string, HealthCheckResult>): string {
+  private getOverallMessage(
+    status: HealthStatus,
+    checks: Record<string, HealthCheckResult>
+  ): string {
     const totalChecks = Object.keys(checks).length;
-    const healthyChecks = Object.values(checks).filter(c => c.status === HealthStatus.HEALTHY).length;
-    const degradedChecks = Object.values(checks).filter(c => c.status === HealthStatus.DEGRADED).length;
-    const unhealthyChecks = Object.values(checks).filter(c => c.status === HealthStatus.UNHEALTHY).length;
+    const healthyChecks = Object.values(checks).filter(
+      c => c.status === HealthStatus.HEALTHY
+    ).length;
+    const degradedChecks = Object.values(checks).filter(
+      c => c.status === HealthStatus.DEGRADED
+    ).length;
+    const unhealthyChecks = Object.values(checks).filter(
+      c => c.status === HealthStatus.UNHEALTHY
+    ).length;
 
     switch (status) {
       case HealthStatus.HEALTHY:

@@ -18,8 +18,29 @@ export interface EnhancedVariable {
   evaluateName?: string;
   memoryReference?: string;
   presentationHint?: {
-    kind?: 'property' | 'method' | 'class' | 'data' | 'event' | 'baseClass' | 'innerClass' | 'interface' | 'mostDerivedClass' | 'virtual' | 'dataBreakpoint';
-    attributes?: ('static' | 'constant' | 'readOnly' | 'rawString' | 'hasObjectId' | 'canHaveObjectId' | 'hasSideEffects' | 'hasDataBreakpoint' | 'canHaveDataBreakpoint')[];
+    kind?:
+      | 'property'
+      | 'method'
+      | 'class'
+      | 'data'
+      | 'event'
+      | 'baseClass'
+      | 'innerClass'
+      | 'interface'
+      | 'mostDerivedClass'
+      | 'virtual'
+      | 'dataBreakpoint';
+    attributes?: (
+      | 'static'
+      | 'constant'
+      | 'readOnly'
+      | 'rawString'
+      | 'hasObjectId'
+      | 'canHaveObjectId'
+      | 'hasSideEffects'
+      | 'hasDataBreakpoint'
+      | 'canHaveDataBreakpoint'
+    )[];
     visibility?: 'public' | 'private' | 'protected' | 'internal' | 'final';
   };
 }
@@ -65,7 +86,18 @@ export interface EvaluationResult {
   indexedVariables?: number;
   memoryReference?: string;
   presentationHint?: {
-    kind?: 'property' | 'method' | 'class' | 'data' | 'event' | 'baseClass' | 'innerClass' | 'interface' | 'mostDerivedClass' | 'virtual' | 'dataBreakpoint';
+    kind?:
+      | 'property'
+      | 'method'
+      | 'class'
+      | 'data'
+      | 'event'
+      | 'baseClass'
+      | 'innerClass'
+      | 'interface'
+      | 'mostDerivedClass'
+      | 'virtual'
+      | 'dataBreakpoint';
     attributes?: string[];
     visibility?: 'public' | 'private' | 'protected' | 'internal' | 'final';
   };

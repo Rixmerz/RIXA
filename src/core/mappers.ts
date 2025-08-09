@@ -86,12 +86,17 @@ export class McpToDapMapper {
       case 'debug/getEnhancedStackTrace':
       case 'debug/getEnhancedVariables':
       case 'debug/evaluateEnhanced':
-        throw new RixaError(ErrorType.UNSUPPORTED_OPERATION, `Enhanced tool ${toolName} should be handled directly`, {
-          details: {
-            toolName,
-            message: 'Enhanced tools bypass DAP mapping and are handled directly by EnhancedDebugTools',
-          },
-        });
+        throw new RixaError(
+          ErrorType.UNSUPPORTED_OPERATION,
+          `Enhanced tool ${toolName} should be handled directly`,
+          {
+            details: {
+              toolName,
+              message:
+                'Enhanced tools bypass DAP mapping and are handled directly by EnhancedDebugTools',
+            },
+          }
+        );
 
       default:
         throw new RixaError(ErrorType.UNSUPPORTED_OPERATION, `Unsupported tool: ${toolName}`, {
@@ -358,7 +363,10 @@ export class McpToDapMapper {
   private mapEvaluate(args: Record<string, unknown>): CommandMappingResult {
     const expression = args['expression'] as string;
     if (typeof expression !== 'string') {
-      throw new RixaError(ErrorType.VALIDATION_ERROR, 'expression is required for evaluate command');
+      throw new RixaError(
+        ErrorType.VALIDATION_ERROR,
+        'expression is required for evaluate command'
+      );
     }
 
     return {
