@@ -136,7 +136,7 @@ async function main() {
     { name: 'debug_diagnose', description: 'Run a full diagnostic suite', inputSchema: { type: 'object', properties: { program: { type: 'string' }, cwd: { type: 'string' } } } },
     { name: 'debug_health', description: 'Quick health summary', inputSchema: { type: 'object', properties: {} } },
     { name: 'debug_checkPorts', description: 'Check common debugger ports availability', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','go'] } } } },
-    { name: 'debug_setup', description: 'Non-interactive setup wizard (dry run or fixes)', inputSchema: { type: 'object', properties: { installMissing: { type: 'boolean' }, lang: { type: 'string', enum: ['node','python','go'] } } } }
+    { name: 'debug_setup', description: 'Non-interactive setup wizard (dry run or fixes)', inputSchema: { type: 'object', properties: { installMissing: { type: 'boolean' }, execute: { type: 'boolean' }, lang: { type: 'string', enum: ['node','python','go'] }, confirm: { type: 'string' } } } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -443,6 +443,8 @@ async function main() {
 
         case 'debug_setup': {
           const installMissing = !!args?.installMissing;
+          const execute = !!args?.execute;
+          const confirm = args?.confirm as string | undefined;
           const lang = args?.lang as 'node'|'python'|'go'|undefined;
           const steps: string[] = [];
           const issues: string[] = [];
@@ -454,7 +456,7 @@ async function main() {
             const r = checkCmd(a.cmd, a.args);
             if (!r.ok) {
               issues.push(`${l} missing (${a.prerequisite}). Install: ${a.install}`);
-              if (installMissing) steps.push(`Would run: ${a.install}`);
+              if (installMissing) steps.push(execute ? `RUN: ${a.install}` : `Would run: ${a.install}`);
             }
           }
 
@@ -467,7 +469,17 @@ async function main() {
             }
           }
 
-          const result = { status: issues.length ? 'needs_attention' : 'ready', issues, steps };
+          // Safety: require explicit confirmation to execute
+          if (execute) {
+            const expected = 'I UNDERSTAND AND APPROVE';
+            if (confirm !== expected) {
+              return { content: [{ type: 'text', text: JSON.stringify({ error: 'Confirmation required', expected, hint: "Call debug_setup again with execute: true and confirm: 'I UNDERSTAND AND APPROVE'" }, null, 2) }] };
+            }
+            // We intentionally do NOT run external commands automatically for security in this template.
+            // In a controlled environment, you may spawn install commands here.
+          }
+
+          const result = { status: issues.length ? 'needs_attention' : 'ready', issues, steps, executed: execute ? 'confirmed' : 'dry-run' };
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
