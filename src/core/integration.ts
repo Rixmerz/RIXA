@@ -716,11 +716,7 @@ export class RixaIntegration extends EventEmitter {
 
       // Map DAP response(s) back to MCP
       if (mappingResult.requiresResponse && dapResponses.length > 0) {
-        const mcpResponse = this.responseMapper.mapResponse(
-          dapResponses[0]!,
-          request,
-          sessionId
-        );
+        const mcpResponse = this.responseMapper.mapResponse(dapResponses[0]!, request, sessionId);
         connection.sendResponse(request.id!, mcpResponse.result);
       } else {
         // Simple success response
@@ -736,14 +732,14 @@ export class RixaIntegration extends EventEmitter {
     } catch (error) {
       await this.handleToolCallError(error, connection, request, {
         requestId: context.requestId,
-        sessionId: args?.['sessionId'] as string,
+        sessionId: args?.['sessionId'] as string | undefined,
         toolName,
         connection,
-        session: undefined, // Session may not be available if validation failed
+        // session is intentionally omitted if not available
         retryCount: 0,
-        originalArgs: args,
+        originalArgs: args || {},
         timestamp: new Date(),
-      });
+      } as ErrorContext);
     }
   }
 
@@ -951,8 +947,8 @@ export class RixaIntegration extends EventEmitter {
     args: Record<string, unknown>
   ): Promise<void> {
     const threadId = args?.['threadId'] as number;
-    const includeScopes = args?.['includeScopes'] as boolean ?? true;
-    const includeVariables = args?.['includeVariables'] as boolean ?? false;
+    const includeScopes = (args?.['includeScopes'] as boolean) ?? true;
+    const includeVariables = (args?.['includeVariables'] as boolean) ?? false;
 
     if (!threadId) {
       throw new RixaError(ErrorType.VALIDATION_ERROR, 'threadId is required');
@@ -996,7 +992,7 @@ export class RixaIntegration extends EventEmitter {
     args: Record<string, unknown>
   ): Promise<void> {
     const variablesReference = args?.['variablesReference'] as number;
-    const maxDepth = args?.['maxDepth'] as number ?? 3;
+    const maxDepth = (args?.['maxDepth'] as number) ?? 3;
 
     if (!variablesReference) {
       throw new RixaError(ErrorType.VALIDATION_ERROR, 'variablesReference is required');
@@ -1039,7 +1035,7 @@ export class RixaIntegration extends EventEmitter {
   ): Promise<void> {
     const expression = args?.['expression'] as string;
     const frameId = args?.['frameId'] as number;
-    const context = args?.['context'] as 'watch' | 'repl' | 'hover' | 'clipboard' ?? 'repl';
+    const context = (args?.['context'] as 'watch' | 'repl' | 'hover' | 'clipboard') ?? 'repl';
 
     if (!expression) {
       throw new RixaError(ErrorType.VALIDATION_ERROR, 'expression is required');
@@ -1083,14 +1079,15 @@ export class RixaIntegration extends EventEmitter {
     errorContext: ErrorContext
   ): Promise<void> {
     // Convert to RixaError if needed
-    const rixaError = error instanceof RixaError
-      ? error
-      : this.errorHandler.createEnhancedError(
-          ErrorType.INTERNAL_ERROR,
-          error instanceof Error ? error.message : String(error),
-          errorContext,
-          { cause: error instanceof Error ? error : undefined }
-        );
+    const rixaError =
+      error instanceof RixaError
+        ? error
+        : this.errorHandler.createEnhancedError(
+            ErrorType.INTERNAL_ERROR,
+            error instanceof Error ? error.message : String(error),
+            errorContext,
+            error instanceof Error ? { cause: error } : undefined
+          );
 
     // Attempt recovery
     const recoveryResult = await this.errorHandler.handleError(rixaError, errorContext);
@@ -1103,10 +1100,13 @@ export class RixaIntegration extends EventEmitter {
 
       try {
         // Update context for retry
-        const retryContext = {
+        const retryContext: ErrorContext = {
           ...errorContext,
           retryCount: errorContext.retryCount + 1,
-          originalArgs: recoveryResult.context?.correctedArgs || errorContext.originalArgs,
+          originalArgs:
+            (recoveryResult.context?.['correctedArgs'] as Record<string, unknown> | undefined) ||
+            errorContext.originalArgs ||
+            {},
         };
 
         // Retry the tool call
@@ -1124,18 +1124,16 @@ export class RixaIntegration extends EventEmitter {
     }
 
     // Send error response
-    if (recoveryResult.context?.fallbackResponse) {
+    if (recoveryResult.context?.['fallbackResponse']) {
       // Use fallback response for graceful degradation
-      connection.sendResponse(request.id!, recoveryResult.context.fallbackResponse);
+      connection.sendResponse(request.id!, recoveryResult.context['fallbackResponse']);
     } else {
       // Standard error response
       connection.sendResponse(request.id!, {
         content: [
           {
             type: 'text',
-            text: recoveryResult.success
-              ? recoveryResult.message
-              : `Error: ${rixaError.message}`,
+            text: recoveryResult.success ? recoveryResult.message : `Error: ${rixaError.message}`,
           },
         ],
         isError: !recoveryResult.success,
@@ -1172,17 +1170,12 @@ export class RixaIntegration extends EventEmitter {
     // Call the tool again (this will go through the same error handling if it fails again)
     await this.handleToolCall(connection, retryRequest, {
       requestId: context.requestId,
+      timestamp: new Date().toISOString(),
+      sessionId: context.sessionId,
     });
   }
 
   /**
-   * Get error statistics
-   */
-  getErrorStats(): any {
-    return this.errorHandler.getErrorStats();
-  }
-
-  /**
    * Handle get error stats request
    */
   private async handleGetErrorStats(
@@ -1242,75 +1235,6 @@ export class RixaIntegration extends EventEmitter {
         isError: true,
       });
     }
-  }
-
-  /**
-   * Handle get error stats request
-   */
-  private async handleGetErrorStats(
-    connection: McpConnection,
-    request: McpToolCallRequest
-  ): Promise<void> {
-    try {
-      const stats = this.errorHandler.getErrorStats();
-
-      connection.sendResponse(request.id!, {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(stats, null, 2),
-          },
-        ],
-      });
-    } catch (error) {
-      connection.sendResponse(request.id!, {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to get error stats: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-        isError: true,
-      });
-    }
-  }
-
-  /**
-   * Handle reset error stats request
-   */
-  private async handleResetErrorStats(
-    connection: McpConnection,
-    request: McpToolCallRequest
-  ): Promise<void> {
-    try {
-      this.errorHandler.resetStats();
-
-      connection.sendResponse(request.id!, {
-        content: [
-          {
-            type: 'text',
-            text: 'Error statistics reset successfully',
-          },
-        ],
-      });
-    } catch (error) {
-      connection.sendResponse(request.id!, {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to reset error stats: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-        isError: true,
-      });
-    }
-  }
-
-  /**
-   * Get error statistics
-   */
-  getErrorStats(): any {
-    return this.errorHandler.getErrorStats();
   }
 
   /**

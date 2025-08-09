@@ -36,7 +36,7 @@ class RixaCli {
         resolve();
       });
 
-      this.ws.on('error', (error) => {
+      this.ws.on('error', error => {
         spinner.fail('Failed to connect to RIXA server');
         reject(error);
       });
@@ -71,7 +71,11 @@ class RixaCli {
     });
 
     console.log(chalk.green('✓ Initialized MCP connection'));
-    console.log(chalk.gray(`Server: ${response.result.serverInfo.name} v${response.result.serverInfo.version}`));
+    console.log(
+      chalk.gray(
+        `Server: ${response.result.serverInfo.name} v${response.result.serverInfo.version}`
+      )
+    );
   }
 
   async listTools(): Promise<void> {
@@ -84,12 +88,16 @@ class RixaCli {
     for (const tool of tools) {
       console.log(chalk.yellow(`\n${tool.name}`));
       console.log(chalk.gray(`  ${tool.description}`));
-      
+
       if (tool.inputSchema?.properties) {
         console.log(chalk.gray('  Parameters:'));
         for (const [param, schema] of Object.entries(tool.inputSchema.properties)) {
           const required = tool.inputSchema.required?.includes(param) ? chalk.red('*') : '';
-          console.log(chalk.gray(`    ${param}${required}: ${(schema as any).description || 'No description'}`));
+          console.log(
+            chalk.gray(
+              `    ${param}${required}: ${(schema as any).description || 'No description'}`
+            )
+          );
         }
       }
     }
@@ -124,7 +132,7 @@ class RixaCli {
         type: 'input',
         name: 'program',
         message: 'Program to debug:',
-        validate: (input) => input.length > 0 || 'Program path is required',
+        validate: input => input.length > 0 || 'Program path is required',
       },
       {
         type: 'input',
@@ -152,13 +160,13 @@ class RixaCli {
       });
 
       spinner.succeed('Debug session created');
-      
+
       const content = response.result.content;
       const sessionInfo = JSON.parse(content[1].text);
-      
+
       console.log(chalk.green(`\nSession ID: ${sessionInfo.sessionId}`));
       console.log(chalk.gray(`State: ${sessionInfo.state}`));
-      
+
       return sessionInfo.sessionId;
     } catch (error) {
       spinner.fail('Failed to create session');
@@ -172,13 +180,13 @@ class RixaCli {
         type: 'input',
         name: 'file',
         message: 'File path:',
-        validate: (input) => input.length > 0 || 'File path is required',
+        validate: input => input.length > 0 || 'File path is required',
       },
       {
         type: 'number',
         name: 'line',
         message: 'Line number:',
-        validate: (input) => (input && input > 0) || 'Line number must be positive',
+        validate: input => (input && input > 0) || 'Line number must be positive',
       },
       {
         type: 'input',
@@ -270,14 +278,16 @@ class RixaCli {
       });
 
       spinner.succeed('Stack trace retrieved');
-      
+
       const stackTrace = JSON.parse(response.result.content[0].text);
       console.log(chalk.blue('\nStack Trace:'));
       console.log(chalk.blue('='.repeat(50)));
 
       stackTrace.stackFrames.forEach((frame: any, index: number) => {
         console.log(chalk.yellow(`${index}: ${frame.name}`));
-        console.log(chalk.gray(`    at ${frame.source?.path || 'unknown'}:${frame.line}:${frame.column}`));
+        console.log(
+          chalk.gray(`    at ${frame.source?.path || 'unknown'}:${frame.line}:${frame.column}`)
+        );
       });
     } catch (error) {
       spinner.fail('Failed to get stack trace');
@@ -291,7 +301,7 @@ class RixaCli {
         type: 'input',
         name: 'expression',
         message: 'Expression to evaluate:',
-        validate: (input) => input.length > 0 || 'Expression is required',
+        validate: input => input.length > 0 || 'Expression is required',
       },
     ]);
 
@@ -346,7 +356,7 @@ class RixaCli {
   private setupMessageHandling(): void {
     if (!this.ws) return;
 
-    this.ws.on('message', (data) => {
+    this.ws.on('message', data => {
       try {
         const message = JSON.parse(data.toString());
 
@@ -372,7 +382,7 @@ class RixaCli {
   private handleNotification(message: any): void {
     if (message.method.startsWith('notifications/debug/')) {
       const eventType = message.method.replace('notifications/debug/', '');
-      
+
       switch (eventType) {
         case 'stopped':
           console.log(chalk.yellow(`\n🛑 Execution stopped: ${message.params.reason}`));
@@ -431,7 +441,10 @@ async function main() {
         console.log(chalk.green('✓ Connection successful'));
         await cli.disconnect();
       } catch (error) {
-        console.error(chalk.red('✗ Connection failed:'), error instanceof Error ? error.message : error);
+        console.error(
+          chalk.red('✗ Connection failed:'),
+          error instanceof Error ? error.message : error
+        );
         process.exit(1);
       }
     });
@@ -502,6 +515,7 @@ async function main() {
         const sessionId = await cli.createSession();
 
         // Interactive debugging loop
+        // eslint-disable-next-line no-constant-condition
         while (true) {
           const action = await inquirer.prompt([
             {
@@ -554,7 +568,7 @@ async function main() {
     .requiredOption('-p, --program <program>', 'Program to debug')
     .option('--args <args>', 'Program arguments (comma-separated)')
     .option('--cwd <cwd>', 'Working directory')
-    .action(async (options) => {
+    .action(async options => {
       const config: RixaCliConfig = {
         serverUrl: program.opts()['url'],
         token: program.opts()['token'],
@@ -595,19 +609,19 @@ async function main() {
 }
 
 // Handle uncaught errors
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   console.error(chalk.red('Uncaught exception:'), error);
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', reason => {
   console.error(chalk.red('Unhandled rejection:'), reason);
   process.exit(1);
 });
 
 // Run CLI
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
+  main().catch(error => {
     console.error(chalk.red('CLI error:'), error);
     process.exit(1);
   });

@@ -122,7 +122,8 @@ export class AdvancedErrorHandler {
             strategy: strategy.name,
             errorType: error.type,
             requestId: context.requestId,
-            recoveryError: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+            recoveryError:
+              recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
           });
         }
       }
@@ -140,7 +141,10 @@ export class AdvancedErrorHandler {
    */
   addRecoveryStrategy(strategy: ErrorRecoveryStrategy): void {
     this.recoveryStrategies.push(strategy);
-    this.logger.debug('Added recovery strategy', { name: strategy.name, priority: strategy.priority });
+    this.logger.debug('Added recovery strategy', {
+      name: strategy.name,
+      priority: strategy.priority,
+    });
   }
 
   /**
@@ -176,22 +180,30 @@ export class AdvancedErrorHandler {
       cause?: Error;
     }
   ): RixaError {
-    return new RixaError(type, message, {
-      code: options?.code,
-      details: {
-        ...options?.details,
-        context: {
-          requestId: context.requestId,
-          sessionId: context.sessionId,
-          toolName: context.toolName,
-          retryCount: context.retryCount || 0,
-          timestamp: context.timestamp || new Date(),
-        },
+    const errorOptions: {
+      code?: string;
+      details?: Record<string, unknown>;
+      requestId?: string;
+      sessionId?: string;
+      cause?: Error;
+    } = {};
+
+    if (options?.code !== undefined) errorOptions.code = options.code;
+    errorOptions.details = {
+      ...(options?.details || {}),
+      context: {
+        requestId: context.requestId,
+        sessionId: context.sessionId,
+        toolName: context.toolName,
+        retryCount: context.retryCount ?? 0,
+        timestamp: context.timestamp || new Date(),
       },
-      requestId: context.requestId,
-      sessionId: context.sessionId,
-      cause: options?.cause,
-    });
+    };
+    if (context.requestId !== undefined) errorOptions.requestId = context.requestId;
+    if (context.sessionId !== undefined) errorOptions.sessionId = context.sessionId;
+    if (options?.cause !== undefined) errorOptions.cause = options.cause;
+
+    return new RixaError(type, message, errorOptions);
   }
 
   private recordError(error: RixaError, context: ErrorContext): void {
@@ -202,20 +214,23 @@ export class AdvancedErrorHandler {
 
     // Count by tool
     if (context.toolName) {
-      this.errorStats.errorsByTool[context.toolName] = (this.errorStats.errorsByTool[context.toolName] || 0) + 1;
+      this.errorStats.errorsByTool[context.toolName] =
+        (this.errorStats.errorsByTool[context.toolName] || 0) + 1;
     }
 
     // Record last error
+    const lastCtx: Partial<ErrorContext> = {
+      requestId: context.requestId,
+      retryCount: context.retryCount,
+    };
+    if (context.sessionId !== undefined) lastCtx.sessionId = context.sessionId;
+    if (context.toolName !== undefined) lastCtx.toolName = context.toolName;
+
     this.errorStats.lastError = {
       type: error.type,
       message: error.message,
       timestamp: context.timestamp,
-      context: {
-        requestId: context.requestId,
-        sessionId: context.sessionId,
-        toolName: context.toolName,
-        retryCount: context.retryCount,
-      },
+      context: lastCtx,
     };
   }
 
@@ -225,12 +240,14 @@ export class AdvancedErrorHandler {
       name: 'session-reconnection',
       priority: 100,
       canRecover: (error, context) => {
-        return error.type === ErrorType.ADAPTER_ERROR && 
-               context.session && 
-               context.retryCount < 2 &&
-               (error.message.includes('not connected') || error.message.includes('connection lost'));
+        return (
+          error.type === ErrorType.ADAPTER_ERROR &&
+          !!context.session &&
+          context.retryCount < 2 &&
+          (error.message.includes('not connected') || error.message.includes('connection lost'))
+        );
       },
-      recover: async (error, context) => {
+      recover: async (_error, context) => {
         if (!context.session) {
           return { success: false, message: 'No session available for reconnection' };
         }
@@ -259,7 +276,7 @@ export class AdvancedErrorHandler {
       canRecover: (error, context) => {
         return error.type === ErrorType.TIMEOUT && context.retryCount < 3;
       },
-      recover: async (error, context) => {
+      recover: async (_error, context) => {
         const delay = Math.min(1000 * Math.pow(2, context.retryCount), 10000);
         return {
           success: true,
@@ -275,9 +292,11 @@ export class AdvancedErrorHandler {
       name: 'parameter-correction',
       priority: 60,
       canRecover: (error, context) => {
-        return error.type === ErrorType.VALIDATION_ERROR && 
-               context.originalArgs &&
-               context.retryCount === 0;
+        return (
+          error.type === ErrorType.VALIDATION_ERROR &&
+          !!context.originalArgs &&
+          context.retryCount === 0
+        );
       },
       recover: async (error, context) => {
         // Attempt to correct common parameter issues
@@ -320,10 +339,10 @@ export class AdvancedErrorHandler {
     this.addRecoveryStrategy({
       name: 'graceful-degradation',
       priority: 40,
-      canRecover: (error, context) => {
+      canRecover: (error, _context) => {
         return error.type === ErrorType.UNSUPPORTED_OPERATION;
       },
-      recover: async (error, context) => {
+      recover: async (_error, context) => {
         return {
           success: true,
           message: `Operation ${context.toolName} not supported, providing fallback response`,
