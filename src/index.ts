@@ -112,8 +112,15 @@ process.on('uncaughtException', error => {
   process.exit(1);
 });
 
-// Start the application
-main().catch(error => {
-  console.error('Failed to start application:', error);
-  process.exit(1);
-});
+// Start stdio MCP server when requested, otherwise start HTTP server
+if (process.argv.includes('--stdio')) {
+  import('./mcp-stdio.js').catch(error => {
+    console.error('Failed to start MCP stdio server:', error);
+    process.exit(1);
+  });
+} else {
+  main().catch(error => {
+    console.error('Failed to start application:', error);
+    process.exit(1);
+  });
+}
