@@ -80,15 +80,28 @@ async function main() {
   } as const;
 
   function checkCmd(cmd: string, args: ReadonlyArray<string> | string[]): { ok: boolean; stdout?: string; stderr?: string } {
-    // Note: child_process.spawnSync returns status 0 when command exists and succeeds.
-    // We keep output for detailed diagnostics.
-
     try {
       const r = spawnSync(cmd, args, { encoding: 'utf8' });
       return { ok: r.status === 0, stdout: r.stdout?.trim(), stderr: r.stderr?.trim() };
     } catch (e) {
       return { ok: false, stderr: (e as Error).message };
     }
+  }
+
+  function runAllowed(command: string, args: string[]): { ok: boolean; stdout: string; stderr: string; code: number } {
+    const allowlist: Record<string, string[]> = {
+      npm: ['install', '-g', 'node-inspect'],
+      pip: ['install', 'debugpy'],
+      go: ['install', 'github.com/go-delve/delve/cmd/dlv@latest'],
+    };
+
+    const key = command as keyof typeof allowlist;
+    if (!(key in allowlist) || JSON.stringify(args) !== JSON.stringify(allowlist[key])) {
+      return { ok: false, stdout: '', stderr: 'Command not allowed', code: -1 };
+    }
+
+    const res = spawnSync(command, args, { encoding: 'utf8' });
+    return { ok: res.status === 0, stdout: (res.stdout || '').trim(), stderr: (res.stderr || '').trim(), code: res.status ?? -1 };
   }
 
   async function checkPathReadable(p: string): Promise<boolean> {
@@ -475,8 +488,24 @@ async function main() {
             if (confirm !== expected) {
               return { content: [{ type: 'text', text: JSON.stringify({ error: 'Confirmation required', expected, hint: "Call debug_setup again with execute: true and confirm: 'I UNDERSTAND AND APPROVE'" }, null, 2) }] };
             }
-            // We intentionally do NOT run external commands automatically for security in this template.
-            // In a controlled environment, you may spawn install commands here.
+            // Execute allowed install commands when confirmed
+            if (installMissing) {
+              for (const l of toCheck) {
+                const a = adapters[l];
+                const r = checkCmd(a.cmd, a.args);
+                if (!r.ok) {
+                  const cmd = l === 'node' ? { c: 'npm', a: ['install', '-g', 'node-inspect'] }
+                            : l === 'python' ? { c: 'pip', a: ['install', 'debugpy'] }
+                            : l === 'go' ? { c: 'go', a: ['install', 'github.com/go-delve/delve/cmd/dlv@latest'] }
+                            : null;
+                  if (cmd) {
+                    const res = runAllowed(cmd.c, cmd.a);
+                    steps.push(`${res.ok ? 'Installed' : 'Failed'}: ${cmd.c} ${cmd.a.join(' ')} (code ${res.code})`);
+                    if (!res.ok) issues.push(`Failed to install ${l}: ${res.stderr || res.stdout}`);
+                  }
+                }
+              }
+            }
           }
 
           const result = { status: issues.length ? 'needs_attention' : 'ready', issues, steps, executed: execute ? 'confirmed' : 'dry-run' };
