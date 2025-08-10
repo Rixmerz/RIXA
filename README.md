@@ -165,7 +165,9 @@ Configuration is managed through environment variables. See `.env.example` for a
 
 ## 🔗 MCP Integration
 
-### Claude Desktop Setup
+### Claude Desktop Setup (MCP via stdio)
+
+Important: RIXA debe ejecutarse con `--stdio` en Claude Desktop.
 
 RIXA integrates seamlessly with Claude Desktop and other MCP clients. Follow these steps to connect RIXA with Claude Desktop:
 
@@ -208,7 +210,7 @@ The Claude Desktop configuration file location varies by operating system:
      "mcpServers": {
        "rixa": {
          "command": "node",
-         "args": ["/path/to/your/RIXA/dist/index.js"],
+         "args": ["/path/to/your/RIXA/dist/index.js", "--stdio"],
          "env": {
            "RIXA_AUTH_ENABLED": "true",
            "RIXA_AUTH_TOKENS": "your-secure-token-here",
@@ -226,7 +228,7 @@ The Claude Desktop configuration file location varies by operating system:
      "mcpServers": {
        "rixa": {
          "command": "node",
-         "args": ["/path/to/your/RIXA/dist/index.js"],
+         "args": ["/path/to/your/RIXA/dist/index.js", "--stdio"],
          "env": {
            "RIXA_AUTH_ENABLED": "true",
            "RIXA_AUTH_TOKENS": "primary-token,backup-token",
@@ -257,13 +259,13 @@ After setup, verify the integration is working:
 
 1. **Open Claude Desktop**
 2. **Ask Claude**: "What debugging tools do you have available?"
-3. **Expected Response**: Claude should list RIXA's 17 debugging tools:
-   - `debug/createSession` - Create new debugging session
-   - `debug/setBreakpoints` - Set breakpoints in code
-   - `debug/continue` - Continue execution
-   - `debug/stepOver` - Step over current line
-   - `debug/getStackTrace` - Get current call stack
-   - And 12 more debugging tools...
+3. **Expected Response**: Claude should list RIXA's debugging tools (nombres compatibles con Claude):
+   - `debug_createSession` - Create new debugging session
+   - `debug_setBreakpoints` - Set breakpoints in code
+   - `debug_continue` - Continue execution
+   - `debug_stepOver` - Step over current line
+   - `debug_getStackTrace` - Get current call stack
+   - …y el resto (`debug_evaluate`, `debug_getThreads`, etc.)
 
 #### 🔧 Troubleshooting
 
