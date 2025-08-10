@@ -204,7 +204,7 @@ The Claude Desktop configuration file location varies by operating system:
 
 3. **Add RIXA Configuration**:
 
-   **Basic Configuration** (recommended for most users):
+   **Basic Configuration (Claude Code example that works out of the box)**:
    ```json
    {
      "mcpServers": {
@@ -212,10 +212,10 @@ The Claude Desktop configuration file location varies by operating system:
          "command": "node",
          "args": ["/path/to/your/RIXA/dist/index.js", "--stdio"],
          "env": {
-           "RIXA_AUTH_ENABLED": "true",
-           "RIXA_AUTH_TOKENS": "your-secure-token-here",
-           "RIXA_FS_ALLOWED_PATHS": "/path/to/your/projects",
-           "RIXA_LOG_LEVEL": "info"
+           "RIXA_AUTH_ENABLED": "false",
+           "RIXA_FS_ALLOWED_PATHS": "/Users/juanpablodiaz/my_projects",
+           "RIXA_LOG_LEVEL": "error",
+           "RIXA_LOG_FILE": "/tmp/rixa.log"
          }
        }
      }
