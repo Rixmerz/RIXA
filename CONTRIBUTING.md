@@ -1,29 +1,25 @@
-# Contributing to RIXA
+# Contributing
 
-Thanks for your interest in contributing!
+Thanks for helping improve RIXA!
 
-## Development setup
-
+## Dev setup (quick)
 ```bash
 npm ci
-npm run typecheck
 npm run lint
-npm run test:unit
+npm test
 npm run build
 ```
 
 ## Workflow
-- Create a branch: `feature/<short-desc>` or `fix/<short-desc>`
-- Open a PR to `main` (squash merge). One approval required.
-- Ensure CI passes (typecheck, lint, tests, build).
+- Branches: `feature/<desc>` or `fix/<desc>`
+- PRs: to `main` (squash). Admins can bypass; others require 1 approval
+- CI must pass: typecheck, lint, tests, build
 
-## Commit style
+## Commits
 Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, `build:`
 
-## Pull Request Checklist
-- [ ] Typecheck passes
-- [ ] Lint passes
-- [ ] Unit tests pass
+## PR checklist
+- [ ] Typecheck & lint pass
+- [ ] Unit tests pass (add tests if needed)
 - [ ] Docs updated (if needed)
 - [ ] No secrets or sensitive data
-

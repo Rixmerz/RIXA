@@ -1,8 +1,7 @@
 # Code of Conduct
 
-This project follows the Contributor Covenant. We are committed to a harassment-free experience for everyone.
+We follow the Contributor Covenant and are committed to a harassment‑free experience for everyone.
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the maintainers at juanpablo516@gmail.com.
+Report unacceptable behavior to: juanpablo516@gmail.com
 
-See https://www.contributor-covenant.org/ for the full text.
-
+Full text: https://www.contributor-covenant.org/
