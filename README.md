@@ -210,10 +210,10 @@ The Claude Desktop configuration file location varies by operating system:
      "mcpServers": {
        "rixa": {
          "command": "node",
-         "args": ["/path/to/your/RIXA/dist/index.js", "--stdio"],
+         "args": ["/Users/user/my_projects/RIXA/dist/index.js", "--stdio"],
          "env": {
            "RIXA_AUTH_ENABLED": "false",
-           "RIXA_FS_ALLOWED_PATHS": "/Users/juanpablodiaz/my_projects",
+           "RIXA_FS_ALLOWED_PATHS": "/Users/user/my_projects",
            "RIXA_LOG_LEVEL": "error",
            "RIXA_LOG_FILE": "/tmp/rixa.log"
          }
