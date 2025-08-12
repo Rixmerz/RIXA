@@ -4,7 +4,7 @@ This guide provides comprehensive instructions for integrating RIXA with Model C
 
 ## Overview
 
-RIXA acts as an MCP server that provides debugging capabilities to AI clients. When properly configured, AI clients can use RIXA's 17 debugging tools to interact with debug adapters and manage debugging sessions.
+RIXA acts as an MCP server that provides debugging capabilities to AI clients. When properly configured, AI clients can use RIXA's 27 debugging tools to interact with debug adapters and manage debugging sessions.
 
 ## Supported MCP Clients
 
@@ -13,11 +13,9 @@ RIXA acts as an MCP server that provides debugging capabilities to AI clients. W
 
 ## Configuration Files
 
-### Template Files Provided
+### Configuration
 
-1. **`claude_desktop_config.json`** - Complete template with detailed comments
-2. **`examples/claude-desktop-basic.json`** - Minimal configuration for quick setup
-3. **`examples/claude-desktop-advanced.json`** - Production-ready configuration
+RIXA requires MCP client configuration to connect. See the examples folder for TypeScript usage examples and the main README for configuration instructions.
 
 ## Step-by-Step Setup
 
@@ -81,10 +79,9 @@ RIXA acts as an MCP server that provides debugging capabilities to AI clients. W
   "mcpServers": {
     "rixa": {
       "command": "node",
-      "args": ["/Users/yourname/RIXA/dist/index.js"],
+      "args": ["/Users/yourname/RIXA/dist/index.js", "--stdio"],
       "env": {
-        "RIXA_AUTH_ENABLED": "true",
-        "RIXA_AUTH_TOKENS": "macos-rixa-token-2025",
+        "RIXA_AUTH_ENABLED": "false",
         "RIXA_FS_ALLOWED_PATHS": "/Users/yourname/projects:/Users/yourname/workspace",
         "RIXA_LOG_LEVEL": "info"
       }
@@ -99,10 +96,9 @@ RIXA acts as an MCP server that provides debugging capabilities to AI clients. W
   "mcpServers": {
     "rixa": {
       "command": "node",
-      "args": ["C:/Users/YourName/RIXA/dist/index.js"],
+      "args": ["C:/Users/YourName/RIXA/dist/index.js", "--stdio"],
       "env": {
-        "RIXA_AUTH_ENABLED": "true",
-        "RIXA_AUTH_TOKENS": "windows-rixa-token-2025",
+        "RIXA_AUTH_ENABLED": "false",
         "RIXA_FS_ALLOWED_PATHS": "C:/Users/YourName/projects;C:/workspace",
         "RIXA_LOG_LEVEL": "info"
       }
@@ -117,10 +113,9 @@ RIXA acts as an MCP server that provides debugging capabilities to AI clients. W
   "mcpServers": {
     "rixa": {
       "command": "node",
-      "args": ["/home/yourname/RIXA/dist/index.js"],
+      "args": ["/home/yourname/RIXA/dist/index.js", "--stdio"],
       "env": {
-        "RIXA_AUTH_ENABLED": "true",
-        "RIXA_AUTH_TOKENS": "linux-rixa-token-2025",
+        "RIXA_AUTH_ENABLED": "false",
         "RIXA_FS_ALLOWED_PATHS": "/home/yourname/projects:/home/yourname/workspace",
         "RIXA_LOG_LEVEL": "info"
       }
@@ -166,13 +161,10 @@ Once configured, the following debugging tools will be available to the MCP clie
 ### 1. Basic Connectivity Test
 Ask your MCP client: "What debugging tools do you have available?"
 
-Expected response should list all 17 RIXA debugging tools.
+Expected response should list all 27 RIXA debugging tools.
 
-### 2. Health Check
-If RIXA is running, you can check its health:
-```bash
-curl http://localhost:3000/health
-```
+### 2. Verification
+RIXA runs in MCP stdio mode, so direct HTTP health checks are not available. Verify through Claude Desktop integration instead.
 
 ### 3. Log Verification
 Check RIXA logs for successful MCP client connections:
@@ -211,18 +203,15 @@ tail -f /path/to/rixa.log
 ### Debug Commands
 
 ```bash
-# Test RIXA directly
+# Test RIXA MCP stdio mode directly
 cd /path/to/RIXA
-npm start
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js --stdio
 
-# Check if RIXA is responding
-curl http://localhost:3000/health
+# View detailed logs in file
+RIXA_LOG_LEVEL=debug RIXA_LOG_FILE=/tmp/rixa.log npm start
 
-# View detailed logs
-RIXA_LOG_LEVEL=debug npm start
-
-# Test with specific configuration
-RIXA_AUTH_ENABLED=false npm start
+# Test with minimal configuration
+node dist/index.js --stdio
 ```
 
 ### Getting Help

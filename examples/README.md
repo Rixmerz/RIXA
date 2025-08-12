@@ -6,11 +6,11 @@ This directory contains examples demonstrating how to use RIXA (Runtime Intellig
 
 The `basic-usage.ts` example shows how to:
 
-1. **Start an MCP Server**: Create and configure a WebSocket server that speaks the Model Context Protocol
-2. **Handle MCP Connections**: Accept connections from AI clients and authenticate them
-3. **Implement Debug Tools**: Provide debugging capabilities as MCP tools
-4. **Manage Debug Sessions**: Create and manage multiple debugging sessions
-5. **Handle Events**: Forward debugging events to connected AI clients
+1. **Use RIXA via MCP**: Integrate RIXA as an MCP server in Claude Desktop
+2. **Debug Sessions**: Create and manage debugging sessions programmatically  
+3. **Implement Debug Tools**: Use RIXA's 27 debugging tools for development workflows
+4. **Handle Debug Operations**: Set breakpoints, inspect variables, control execution
+5. **Integrate with AI**: Leverage AI-assisted debugging through MCP protocol
 
 ### Running the Example
 
@@ -18,145 +18,95 @@ The `basic-usage.ts` example shows how to:
 # Make sure you're in the project root
 cd /path/to/rixa
 
-# Install dependencies
-npm install
+# Install dependencies and build
+npm ci && npm run build
 
-# Build the project
-npm run build
+# The examples are TypeScript code showing integration patterns
+# They demonstrate MCP client usage, not server setup
 
-# Run the example
-npx tsx examples/basic-usage.ts
+# To actually use RIXA, configure it in Claude Desktop:
+# See the main README.md for MCP configuration steps
 ```
 
-### Configuration
+### Integration Patterns
 
-The example uses the same configuration system as the main application. You can customize behavior using environment variables:
+The examples show different ways to integrate RIXA:
 
-```bash
-# Set custom port
-RIXA_PORT=8080 npx tsx examples/basic-usage.ts
-
-# Enable debug logging
-RIXA_LOG_LEVEL=debug npx tsx examples/basic-usage.ts
-
-# Use custom auth token
-RIXA_AUTH_TOKENS=my-secret-token npx tsx examples/basic-usage.ts
+```typescript
+// Examples demonstrate programmatic usage
+// For actual debugging, use Claude Desktop with MCP configuration
 ```
 
-### Connecting an AI Client
+### Claude Desktop Integration
 
-Once the server is running, you can connect an AI client via WebSocket:
+RIXA works through Claude Desktop via MCP stdio protocol:
 
-```javascript
-// Connect to the MCP server
-const ws = new WebSocket('ws://localhost:3000/mcp');
+```json
+{
+  "mcpServers": {
+    "rixa": {
+      "command": "node",
+      "args": ["/path/to/RIXA/dist/index.js", "--stdio"],
+      "env": {
+        "RIXA_AUTH_ENABLED": "false",
+        "RIXA_FS_ALLOWED_PATHS": "/path/to/projects",
+        "RIXA_LOG_LEVEL": "error"
+      }
+    }
+  }
+}
+```
 
-// Send initialize request
-ws.send(JSON.stringify({
-  jsonrpc: '2.0',
-  id: 1,
-  method: 'initialize',
-  params: {
-    protocolVersion: '2024-11-05',
-    capabilities: {
-      tools: true,
-      resources: true,
-    },
-    clientInfo: {
-      name: 'AI Debug Client',
-      version: '1.0.0',
-    },
-  },
-}));
+Then use natural language with Claude:
 
-// List available tools
-ws.send(JSON.stringify({
-  jsonrpc: '2.0',
-  id: 2,
-  method: 'tools/list',
-}));
-
-// Create a debug session
-ws.send(JSON.stringify({
-  jsonrpc: '2.0',
-  id: 3,
-  method: 'tools/call',
-  params: {
-    name: 'debug/createSession',
-    arguments: {
-      adapter: 'node',
-      program: '/path/to/your/app.js',
-      args: ['--verbose'],
-    },
-  },
-}));
+```
+"Create a debug session for my Node.js app at /path/to/app.js"
+"Set a breakpoint at line 25 in app.js" 
+"Continue execution and show me the stack trace"
 ```
 
 ### Available Debug Tools
 
-The example implements these debugging tools:
+RIXA provides 27 debugging tools accessible through Claude:
 
-#### `debug/createSession`
-Creates a new debugging session.
+**Core Tools:**
+- `debug_createSession` - Create debugging sessions
+- `debug_setBreakpoints` - Set/manage breakpoints  
+- `debug_continue` - Control execution flow
+- `debug_stepOver/In/Out` - Step through code
+- `debug_getStackTrace` - Inspect call stacks
+- `debug_getVariables` - Examine variable values
+- `debug_evaluate` - Evaluate expressions
 
-**Parameters:**
-- `adapter` (string): Debug adapter type (e.g., "node")
-- `program` (string): Path to the program to debug
-- `args` (array, optional): Program arguments
+**Enhanced Tools:**
+- `debug_getEnhancedStackTrace` - Detailed stack analysis
+- `debug_getEnhancedVariables` - Deep variable inspection
+- `debug_evaluateEnhanced` - Advanced expression evaluation
 
-**Returns:**
-- Session ID for the created debug session
-
-#### `debug/setBreakpoint`
-Sets a breakpoint in a file.
-
-**Parameters:**
-- `sessionId` (string): Debug session ID
-- `file` (string): File path
-- `line` (number): Line number
-- `condition` (string, optional): Breakpoint condition
-
-**Returns:**
-- Confirmation of breakpoint creation
-
-#### `debug/continue`
-Continues execution in a paused debug session.
-
-**Parameters:**
-- `sessionId` (string): Debug session ID
-- `threadId` (number): Thread ID to continue
-
-**Returns:**
-- Confirmation of continue command
-
-### Event Notifications
-
-The server sends these notifications to connected clients:
-
-- `notifications/sessionStateChanged`: When a debug session changes state
-- `notifications/sessionStopped`: When execution stops (breakpoint, exception, etc.)
-- `notifications/sessionOutput`: When the debugged program produces output
+**Diagnostics:**
+- `debug_health` - System health checks
+- `debug_validateEnvironment` - Environment validation
+- `debug_setup` - Automated setup wizard
 
 ### Architecture Overview
 
 ```
-AI Client (WebSocket) ←→ MCP Server ←→ Session Manager ←→ DAP Client ←→ Debug Adapter
+Claude Desktop ←→ MCP stdio ←→ RIXA ←→ Debug Adapter Protocol ←→ Debugger
 ```
 
-1. **AI Client**: Connects via WebSocket using MCP protocol
-2. **MCP Server**: Handles MCP requests and translates them to debug operations
-3. **Session Manager**: Manages multiple debug sessions with isolation
-4. **DAP Client**: Communicates with debug adapters using Debug Adapter Protocol
-5. **Debug Adapter**: The actual debugger (e.g., Node.js debugger, Python debugger)
+1. **Claude Desktop**: AI interface using natural language
+2. **MCP stdio**: Model Context Protocol communication  
+3. **RIXA**: Translates MCP to Debug Adapter Protocol
+4. **Debug Adapter**: Language-specific debugger (Node.js, Python, etc.)
 
 ### Next Steps
 
-This basic example demonstrates the core concepts. For production use, you would want to:
+To use RIXA effectively:
 
-1. **Add more debug tools**: step-in, step-out, evaluate expressions, inspect variables
-2. **Implement resource providers**: file system access, project structure
-3. **Add security**: proper authentication, input validation, sandboxing
-4. **Handle errors gracefully**: timeout handling, adapter crashes, network issues
-5. **Add persistence**: session state, breakpoint storage, configuration management
+1. **Follow main README**: Complete MCP integration setup with Claude Desktop  
+2. **Start simple**: Create basic debug sessions and set breakpoints
+3. **Explore tools**: Try enhanced stack traces and variable inspection
+4. **Use diagnostics**: Run health checks and environment validation
+5. **Integrate workflow**: Combine AI assistance with traditional debugging
 
-See the main RIXA application for a more complete implementation.
+See the main README.md and CLAUDE.md for complete setup instructions.

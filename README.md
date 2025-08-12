@@ -10,7 +10,6 @@
   [![CI](https://github.com/Rixmerz/RIXA/actions/workflows/ci.yml/badge.svg)](https://github.com/Rixmerz/RIXA/actions/workflows/ci.yml)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
   [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
-  [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 </div>
 
@@ -76,10 +75,8 @@ cd RIXA
 # Install dependencies
 npm ci
 
-# Copy environment configuration
-cp .env.example .env
-
-# Edit .env with your settings (token, allowed paths, etc.)
+# Build the project
+npm run build
 ```
 
 ### Development
@@ -97,9 +94,8 @@ npm test
 # Run tests with coverage
 npm run test:coverage
 
-# Lint and format
+# Lint code
 npm run lint
-npm run format
 ```
 
 ### Production
@@ -108,28 +104,11 @@ npm run format
 # Build and start
 npm run build
 npm start
-
-# Or using Docker
-docker build -t rixmerz/rixa:latest .
-docker run --rm -p 3000:3000 \
-  -e RIXA_AUTH_ENABLED=true \
-  -e RIXA_AUTH_TOKENS=my-token \
-  -e RIXA_FS_ALLOWED_PATHS=/workspace \
-  -e RIXA_LOG_LEVEL=info \
-  rixmerz/rixa:latest
 ```
 
 ## Configuration
 
-Configuration is managed through environment variables. See `.env.example` for all available options.
-
-### Key Configuration Areas
-
-- **Server**: Port, host, CORS settings
-- **Authentication**: Token-based auth, session timeouts
-- **Filesystem**: Read-only mode, allowed paths, file size limits
-- **DAP**: Default adapter, timeout settings
-- **Logging**: Level, format, file output
+RIXA is primarily used as an MCP server for Claude Desktop integration. See the MCP Integration section below for setup.
 
 ## 🚀 Development Status
 
@@ -151,17 +130,16 @@ Configuration is managed through environment variables. See `.env.example` for a
 - Secure filesystem resource provider
 - Structured logging with correlation IDs
 
-**🐳 Phase 4: Deployment & CI/CD** ✅
-- Docker containerization with multi-stage builds
+**🐳 Phase 4: Testing & Quality** ✅
 - GitHub Actions CI/CD pipeline
 - Comprehensive test suite (133 tests passing)
-- Production deployment documentation
+- Production-ready MCP integration
 
 ### 📈 **Current Metrics**
 - **27** MCP debugging tools implemented
 - **4** error recovery strategies active
 - **133** unit tests passing (100% success rate)
-- **Docker** ready for production deployment
+- **MCP** ready for Claude Desktop integration
 - **CI/CD** pipeline with automated testing
 
 ## 🔗 MCP Integration
@@ -194,8 +172,7 @@ RIXA works with Claude Desktop via MCP stdio. Setup is just: build + configure.
          "env": {
            "RIXA_AUTH_ENABLED": "false",
            "RIXA_FS_ALLOWED_PATHS": "/Users/username/my_projects",
-           "RIXA_LOG_LEVEL": "error",
-           "RIXA_LOG_FILE": "/tmp/rixa.log"
+           "RIXA_LOG_LEVEL": "error"
          }
        }
      }
@@ -248,7 +225,7 @@ After setup, verify the integration is working:
 - **Test Coverage**: 133 unit tests with 100% pass rate
 - **Build System**: TypeScript compiler + tsc-alias for path resolution
 - **CI/CD**: GitHub Actions with automated testing and linting
-- **Container**: Multi-stage Docker build optimized for production
+- **Integration**: MCP stdio protocol for seamless AI integration
 
 ## 📄 License
 
