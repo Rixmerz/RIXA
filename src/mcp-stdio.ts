@@ -274,7 +274,8 @@ async function main() {
     { name: 'debug_suggestPortResolution', description: 'Suggest resolution for port conflicts', inputSchema: { type: 'object', properties: { port: { type: 'number' } }, required: ['port'] } },
     { name: 'debug_startPortMonitoring', description: 'Start continuous port monitoring', inputSchema: { type: 'object', properties: { intervalMs: { type: 'number' } } } },
     { name: 'debug_stopPortMonitoring', description: 'Stop port monitoring', inputSchema: { type: 'object', properties: {} } },
-    { name: 'debug_validateJDWPConnectionEnhanced', description: 'Enhanced JDWP validation with agent detection and conflict analysis', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, timeout: { type: 'number' }, retryAttempts: { type: 'number' } }, required: ['port'] } }
+    { name: 'debug_validateJDWPConnectionEnhanced', description: 'Enhanced JDWP validation with agent detection and conflict analysis', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, timeout: { type: 'number' }, retryAttempts: { type: 'number' } }, required: ['port'] } },
+    { name: 'debug_verifyPortStatus', description: 'Verify actual port status with comprehensive system-level checks', inputSchema: { type: 'object', properties: { port: { type: 'number' }, includeProcessDetails: { type: 'boolean' } }, required: ['port'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -613,21 +614,73 @@ async function main() {
               };
             }
 
-            const session = await sessionManager.createSession({
-              adapterConfig: {
-                transport: {
-                  type: 'stdio',
-                  command: getAdapterCommand(adapter),
-                  args: getAdapterArgs(adapter),
-                },
-              },
-              attachConfig,
-              name: `Debug Attach Session (${adapter}:${port})`,
-              workspaceRoot: cwd,
-            });
+            // Enhanced session creation with better error handling and retry logic
+            let session: any = null;
+            let attachAttempts = 0;
+            const maxAttachAttempts = forceConnect ? 3 : 1;
 
-            await session.initialize();
-            await session.attach();
+            // Helper function for attach with retry
+            const attachWithRetry = async (sessionToAttach: any, attempt: number) => {
+              const timeout = 5000 + (attempt * 2000); // Increasing timeout
+              return Promise.race([
+                sessionToAttach.attach(),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error(`Attach timeout after ${timeout}ms`)), timeout)
+                )
+              ]);
+            };
+
+            while (attachAttempts < maxAttachAttempts) {
+              try {
+                attachAttempts++;
+
+                session = await sessionManager.createSession({
+                  adapterConfig: {
+                    transport: {
+                      type: 'stdio',
+                      command: getAdapterCommand(adapter),
+                      args: getAdapterArgs(adapter),
+                    },
+                  },
+                  attachConfig,
+                  name: `Debug Attach Session (${adapter}:${port}) - Attempt ${attachAttempts}`,
+                  workspaceRoot: cwd,
+                });
+
+                await session.initialize();
+
+                // Enhanced attach with timeout and retry logic
+                if (forceConnect) {
+                  // For force connect, try multiple times with increasing delays
+                  await attachWithRetry(session, attachAttempts);
+                } else {
+                  await session.attach();
+                }
+
+                // If we get here, attach was successful
+                break;
+
+              } catch (attachError) {
+                if (session) {
+                  try {
+                    await session.terminate();
+                  } catch (cleanupError) {
+                    // Ignore cleanup errors
+                  }
+                }
+
+                if (attachAttempts >= maxAttachAttempts) {
+                  throw attachError;
+                }
+
+                // Wait before retry (exponential backoff)
+                await new Promise(resolve => setTimeout(resolve, 1000 * attachAttempts));
+              }
+            }
+
+            if (!session) {
+              throw new Error('Failed to create debug session after all attempts');
+            }
 
             return {
               content: [
@@ -1434,6 +1487,109 @@ async function main() {
             return { content: [{ type: 'text', text: JSON.stringify(analysis, null, 2) }] };
           } catch (error) {
             return { content: [{ type: 'text', text: `Enhanced JDWP validation failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_verifyPortStatus': {
+          const port = Number(args?.port || 5005);
+          const includeProcessDetails = Boolean(args?.includeProcessDetails !== false);
+
+          try {
+            // Use system-level commands to get accurate port status
+            const { execSync } = await import('child_process');
+
+            // Get comprehensive port information
+            const lsofResult = execSync(`lsof -i :${port} -P -n`, {
+              encoding: 'utf-8',
+              timeout: 5000
+            });
+
+            const lines = lsofResult.split('\n').filter(line =>
+              line.trim() && !line.startsWith('COMMAND')
+            );
+
+            const portStatus = {
+              port,
+              inUse: lines.length > 0,
+              connections: [] as any[],
+              summary: {
+                listening: false,
+                established: 0,
+                total: lines.length
+              },
+              systemCheck: {
+                lsofOutput: lsofResult,
+                timestamp: new Date().toISOString()
+              }
+            };
+
+            // Analyze each connection
+            for (const line of lines) {
+              const parts = line.split(/\s+/);
+              if (parts.length >= 8) {
+                const connection: any = {
+                  process: parts[0],
+                  pid: parts[1],
+                  user: parts[2],
+                  fd: parts[3],
+                  type: parts[4],
+                  device: parts[5],
+                  node: parts[7],
+                  name: parts[8],
+                  state: line.includes('LISTEN') ? 'LISTEN' :
+                         line.includes('ESTABLISHED') ? 'ESTABLISHED' : 'OTHER'
+                };
+
+                if (includeProcessDetails) {
+                  connection.fullLine = line;
+                }
+
+                portStatus.connections.push(connection);
+
+                if (connection.state === 'LISTEN') {
+                  portStatus.summary.listening = true;
+                }
+                if (connection.state === 'ESTABLISHED') {
+                  portStatus.summary.established++;
+                }
+              }
+            }
+
+            // Add recommendations based on findings
+            const recommendations = [];
+            if (!portStatus.inUse) {
+              recommendations.push('❌ Port is not in use - no processes detected');
+              recommendations.push('🚀 Start your application with debug agent on this port');
+            } else if (portStatus.summary.listening) {
+              recommendations.push('✅ Port has listening process - likely a server/debug agent');
+              if (portStatus.summary.established > 0) {
+                recommendations.push(`⚠️ ${portStatus.summary.established} established connection(s) detected`);
+                recommendations.push('🔍 Use observer mode or hybrid debugging to avoid conflicts');
+              } else {
+                recommendations.push('✅ No active connections - port should be available for debugging');
+              }
+            } else if (portStatus.summary.established > 0) {
+              recommendations.push('⚠️ Port has established connections but no listener');
+              recommendations.push('🔍 This might indicate a client-side connection');
+            }
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              ...portStatus,
+              recommendations
+            }, null, 2) }] };
+
+          } catch (error) {
+            // If lsof fails, port is likely not in use
+            return { content: [{ type: 'text', text: JSON.stringify({
+              port,
+              inUse: false,
+              error: error instanceof Error ? error.message : String(error),
+              recommendations: [
+                '❌ Port verification failed - likely not in use',
+                '🚀 Start your application with debug agent enabled',
+                `📋 Command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourApp`
+              ]
+            }, null, 2) }] };
           }
         }
 

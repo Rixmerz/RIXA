@@ -106,28 +106,44 @@ export class PortManager extends EventEmitter {
   }
 
   /**
-   * Get all listening ports from the system
+   * Get all listening ports from the system with enhanced detection
    */
   private async getListeningPorts(): Promise<number[]> {
     try {
-      const result = execSync('lsof -i -P -n | grep LISTEN', { 
-        encoding: 'utf-8', 
-        timeout: 5000 
+      // Get both LISTEN and ESTABLISHED connections for comprehensive detection
+      const listenResult = execSync('lsof -i -P -n | grep LISTEN', {
+        encoding: 'utf-8',
+        timeout: 5000
       });
-      
+
+      const establishedResult = execSync('lsof -i -P -n | grep ESTABLISHED', {
+        encoding: 'utf-8',
+        timeout: 5000
+      });
+
       const ports: number[] = [];
-      const lines = result.split('\n');
-      
-      for (const line of lines) {
-        const portMatch = line.match(/:(\d+)\s+\(LISTEN\)/);
-        if (portMatch && portMatch[1]) {
-          const port = parseInt(portMatch[1]);
-          if (port > 1024) { // Skip system ports
+      const allLines = [...listenResult.split('\n'), ...establishedResult.split('\n')];
+
+      for (const line of allLines) {
+        // Match both LISTEN and ESTABLISHED patterns
+        const listenMatch = line.match(/:(\d+)\s+\(LISTEN\)/);
+        const establishedMatch = line.match(/:(\d+)->/);
+
+        if (listenMatch && listenMatch[1]) {
+          const port = parseInt(listenMatch[1]);
+          if (port > 1024) {
+            ports.push(port);
+          }
+        }
+
+        if (establishedMatch && establishedMatch[1]) {
+          const port = parseInt(establishedMatch[1]);
+          if (port > 1024) {
             ports.push(port);
           }
         }
       }
-      
+
       return [...new Set(ports)]; // Remove duplicates
     } catch (error) {
       console.warn('Failed to get listening ports:', error);
@@ -146,23 +162,31 @@ export class PortManager extends EventEmitter {
     };
 
     try {
-      // Check if port is listening
-      const processInfo = await this.getPortProcessInfo(port);
-      if (processInfo) {
-        portInfo.process = processInfo;
-        portInfo.status = 'occupied';
+      // First check if port is actually in use (comprehensive check)
+      const inUse = await this.isPortInUse(port);
 
-        // Check if it's a Java process (potential debug agent)
-        if (processInfo.command.includes('java') || processInfo.name === 'java') {
-          if (deepScan) {
-            const debugInfo = await this.analyzeJavaProcess(port);
-            if (debugInfo.isJDWP) {
-              portInfo.status = 'debug_agent';
-              portInfo.debugInfo = debugInfo;
+      if (inUse) {
+        // Get detailed process information
+        const processInfo = await this.getPortProcessInfo(port);
+        if (processInfo) {
+          portInfo.process = processInfo;
+          portInfo.status = 'occupied';
+
+          // Check if it's a Java process (potential debug agent)
+          if (processInfo.command.includes('java') || processInfo.name === 'java') {
+            if (deepScan) {
+              const debugInfo = await this.analyzeJavaProcess(port);
+              if (debugInfo.isJDWP) {
+                portInfo.status = 'debug_agent';
+                portInfo.debugInfo = debugInfo;
+              }
+            } else {
+              portInfo.status = 'debug_agent'; // Assume it's a debug agent
             }
-          } else {
-            portInfo.status = 'debug_agent'; // Assume it's a debug agent
           }
+        } else {
+          // Port is in use but we couldn't get process info
+          portInfo.status = 'occupied';
         }
       } else {
         portInfo.status = 'free';
@@ -176,16 +200,18 @@ export class PortManager extends EventEmitter {
   }
 
   /**
-   * Get process information for a specific port
+   * Get process information for a specific port with enhanced detection
    */
   private async getPortProcessInfo(port: number): Promise<{ pid: number; name: string; command: string } | null> {
     try {
-      const result = execSync(`lsof -i :${port} -P -n`, { 
-        encoding: 'utf-8', 
-        timeout: 3000 
+      const result = execSync(`lsof -i :${port} -P -n`, {
+        encoding: 'utf-8',
+        timeout: 3000
       });
-      
+
       const lines = result.split('\n');
+
+      // First, look for LISTEN connections (servers)
       for (const line of lines) {
         if (line.includes('LISTEN')) {
           const parts = line.split(/\s+/);
@@ -198,7 +224,35 @@ export class PortManager extends EventEmitter {
           }
         }
       }
-      
+
+      // If no LISTEN found, look for ESTABLISHED connections
+      for (const line of lines) {
+        if (line.includes('ESTABLISHED')) {
+          const parts = line.split(/\s+/);
+          if (parts.length >= 2) {
+            return {
+              pid: parts[1] ? parseInt(parts[1]) : 0,
+              name: parts[0] || 'unknown',
+              command: line
+            };
+          }
+        }
+      }
+
+      // If no specific state found, take the first valid line
+      for (const line of lines) {
+        if (line.trim() && !line.startsWith('COMMAND')) {
+          const parts = line.split(/\s+/);
+          if (parts.length >= 2) {
+            return {
+              pid: parts[1] ? parseInt(parts[1]) : 0,
+              name: parts[0] || 'unknown',
+              command: line
+            };
+          }
+        }
+      }
+
       return null;
     } catch (error) {
       return null;
@@ -265,15 +319,39 @@ export class PortManager extends EventEmitter {
    */
   private async countPortConnections(port: number): Promise<number> {
     try {
-      const result = execSync(`lsof -i :${port} -P -n`, { 
-        encoding: 'utf-8', 
-        timeout: 3000 
+      const result = execSync(`lsof -i :${port} -P -n`, {
+        encoding: 'utf-8',
+        timeout: 3000
       });
-      
+
       const lines = result.split('\n');
       return lines.filter(line => line.includes('ESTABLISHED')).length;
     } catch (error) {
       return 0;
+    }
+  }
+
+  /**
+   * Check if port is actually in use (more comprehensive than just LISTEN)
+   */
+  private async isPortInUse(port: number): Promise<boolean> {
+    try {
+      const result = execSync(`lsof -i :${port} -P -n`, {
+        encoding: 'utf-8',
+        timeout: 3000
+      });
+
+      // Port is in use if there are any connections (LISTEN, ESTABLISHED, etc.)
+      const lines = result.split('\n').filter(line =>
+        line.trim() &&
+        !line.startsWith('COMMAND') &&
+        line.includes(`:${port}`)
+      );
+
+      return lines.length > 0;
+    } catch (error) {
+      // If lsof fails, the port is likely not in use
+      return false;
     }
   }
 
