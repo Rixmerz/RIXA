@@ -15,6 +15,12 @@ import { access } from 'fs/promises';
 import { spawnSync } from 'child_process';
 import { createServer } from 'node:net';
 import { sync as globSync } from 'glob';
+import { analyzeJavaProject, detectActiveDebugPorts } from './java/enhanced-detection.js';
+import { JDWPValidator, scanForJDWPAgents } from './java/jdwp-validator.js';
+import { HybridDebugger } from './java/hybrid-debugger.js';
+import { AdvancedErrorRecovery } from './java/error-recovery.js';
+import type { HybridDebugConfig } from './java/hybrid-debugger.js';
+import type { DebugError, RecoveryContext } from './java/error-recovery.js';
 
 
 // Do not log to stdout/stderr in stdio mode; MCP expects only JSON-RPC
@@ -245,7 +251,16 @@ async function main() {
     { name: 'debug_health', description: 'Quick health summary', inputSchema: { type: 'object', properties: {} } },
     { name: 'debug_checkPorts', description: 'Check common debugger ports availability', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','java','go','rust'] } } } },
     { name: 'debug_setup', description: 'Non-interactive setup wizard (dry run or fixes)', inputSchema: { type: 'object', properties: { installMissing: { type: 'boolean' }, execute: { type: 'boolean' }, lang: { type: 'string', enum: ['node','python','java','go','rust'] }, confirm: { type: 'string' } } } },
-    { name: 'debug_diagnoseJava', description: 'Comprehensive Java debugging environment diagnosis', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } } } }
+    { name: 'debug_diagnoseJava', description: 'Comprehensive Java debugging environment diagnosis', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } } } },
+    { name: 'debug_enhancedJavaDetection', description: 'Enhanced Java project detection and analysis', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } }, required: ['workspaceRoot'] } },
+    { name: 'debug_validateJDWPConnection', description: 'Validate JDWP connection with retry logic', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, timeout: { type: 'number' }, retryAttempts: { type: 'number' } }, required: ['host', 'port'] } },
+    { name: 'debug_scanJDWPAgents', description: 'Scan for active JDWP debug agents', inputSchema: { type: 'object', properties: { portStart: { type: 'number' }, portEnd: { type: 'number' } } } },
+    { name: 'debug_startHybridDebugging', description: 'Start hybrid debugging with log analysis and API testing', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' }, applicationUrl: { type: 'string' }, logFiles: { type: 'array', items: { type: 'string' } }, apiEndpoints: { type: 'array', items: { type: 'string' } } }, required: ['workspaceRoot'] } },
+    { name: 'debug_stopHybridDebugging', description: 'Stop hybrid debugging session', inputSchema: { type: 'object', properties: {} } },
+    { name: 'debug_executeApiTest', description: 'Execute API test for debugging', inputSchema: { type: 'object', properties: { endpoint: { type: 'string' }, method: { type: 'string' }, data: { type: 'object' } }, required: ['endpoint'] } },
+    { name: 'debug_addBreakpointSimulation', description: 'Add breakpoint simulation for log analysis', inputSchema: { type: 'object', properties: { className: { type: 'string' }, methodName: { type: 'string' }, logLevel: { type: 'string', enum: ['INFO', 'DEBUG', 'WARN', 'ERROR'] } }, required: ['className', 'methodName'] } },
+    { name: 'debug_attemptErrorRecovery', description: 'Attempt automatic error recovery with fallback strategies', inputSchema: { type: 'object', properties: { errorType: { type: 'string', enum: ['connection', 'handshake', 'configuration', 'timeout', 'unknown'] }, errorMessage: { type: 'string' }, workspaceRoot: { type: 'string' } }, required: ['errorType', 'errorMessage', 'workspaceRoot'] } },
+    { name: 'debug_getTroubleshootingGuide', description: 'Get troubleshooting guide for debugging issues', inputSchema: { type: 'object', properties: { problemType: { type: 'string' } }, required: ['problemType'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -842,6 +857,174 @@ async function main() {
           }
 
           return { content: [{ type: 'text', text: JSON.stringify(diagnosis, null, 2) }] };
+        }
+
+        case 'debug_enhancedJavaDetection': {
+          const workspaceRoot = String(args?.workspaceRoot || process.cwd());
+
+          try {
+            const projectInfo = analyzeJavaProject(workspaceRoot);
+            return { content: [{ type: 'text', text: JSON.stringify(projectInfo, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Enhanced detection failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_validateJDWPConnection': {
+          const host = String(args?.host || 'localhost');
+          const port = Number(args?.port || 5005);
+          const timeout = Number(args?.timeout || 10000);
+          const retryAttempts = Number(args?.retryAttempts || 3);
+
+          try {
+            const validator = new JDWPValidator(host, port, { timeout, retryAttempts });
+            const result = await validator.validateConnection();
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `JDWP validation failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_scanJDWPAgents': {
+          const portStart = Number(args?.portStart || 5000);
+          const portEnd = Number(args?.portEnd || 9999);
+
+          try {
+            const agents = await scanForJDWPAgents({ start: portStart, end: portEnd });
+            return { content: [{ type: 'text', text: JSON.stringify(agents, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `JDWP scan failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_startHybridDebugging': {
+          const workspaceRoot = String(args?.workspaceRoot || process.cwd());
+          const applicationUrl = String(args?.applicationUrl || 'http://localhost:8080');
+          const logFiles = Array.isArray(args?.logFiles) ? args.logFiles.map(String) : ['logs/application.log'];
+          const apiEndpoints = Array.isArray(args?.apiEndpoints) ? args.apiEndpoints.map(String) : ['/actuator/health'];
+
+          try {
+            const config: HybridDebugConfig = {
+              workspaceRoot,
+              applicationUrl,
+              logFiles,
+              apiEndpoints,
+              enableLogWatching: true,
+              enableApiTesting: true,
+              enableBreakpointSimulation: true
+            };
+
+            const hybridDebugger = new HybridDebugger(config);
+            await hybridDebugger.start();
+
+            // Store reference for later use (in a real implementation, you'd use a session manager)
+            (global as any).hybridDebugger = hybridDebugger;
+
+            return { content: [{ type: 'text', text: 'Hybrid debugging started successfully' }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Hybrid debugging failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_stopHybridDebugging': {
+          try {
+            const hybridDebugger = (global as any).hybridDebugger;
+            if (hybridDebugger) {
+              await hybridDebugger.stop();
+              delete (global as any).hybridDebugger;
+              return { content: [{ type: 'text', text: 'Hybrid debugging stopped' }] };
+            } else {
+              return { content: [{ type: 'text', text: 'No active hybrid debugging session' }] };
+            }
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to stop hybrid debugging: ${error}` }] };
+          }
+        }
+
+        case 'debug_executeApiTest': {
+          const endpoint = String(args?.endpoint);
+          const method = String(args?.method || 'GET');
+          const data = args?.data;
+
+          try {
+            const hybridDebugger = (global as any).hybridDebugger;
+            if (!hybridDebugger) {
+              return { content: [{ type: 'text', text: 'No active hybrid debugging session. Start hybrid debugging first.' }] };
+            }
+
+            const result = await hybridDebugger.executeApiTest(endpoint, method, data);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `API test failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_addBreakpointSimulation': {
+          const className = String(args?.className);
+          const methodName = String(args?.methodName);
+          const logLevel = String(args?.logLevel || 'INFO') as 'INFO' | 'DEBUG' | 'WARN' | 'ERROR';
+
+          try {
+            const hybridDebugger = (global as any).hybridDebugger;
+            if (!hybridDebugger) {
+              return { content: [{ type: 'text', text: 'No active hybrid debugging session. Start hybrid debugging first.' }] };
+            }
+
+            hybridDebugger.addBreakpointSimulation({ className, methodName, logLevel });
+            return { content: [{ type: 'text', text: `Breakpoint simulation added for ${className}.${methodName}` }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to add breakpoint simulation: ${error}` }] };
+          }
+        }
+
+        case 'debug_attemptErrorRecovery': {
+          const errorType = String(args?.errorType) as 'connection' | 'handshake' | 'configuration' | 'timeout' | 'unknown';
+          const errorMessage = String(args?.errorMessage);
+          const workspaceRoot = String(args?.workspaceRoot || process.cwd());
+
+          try {
+            const errorRecovery = new AdvancedErrorRecovery();
+            const projectInfo = analyzeJavaProject(workspaceRoot);
+
+            const debugError: DebugError = {
+              type: errorType,
+              message: errorMessage,
+              timestamp: new Date(),
+              retryCount: 0
+            };
+
+            const context: RecoveryContext = {
+              workspaceRoot,
+              projectInfo,
+              originalConfig: {},
+              availablePorts: detectActiveDebugPorts(),
+              jdwpAgents: await scanForJDWPAgents()
+            };
+
+            const result = await errorRecovery.attemptRecovery(debugError, context);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Error recovery failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_getTroubleshootingGuide': {
+          const problemType = String(args?.problemType);
+
+          try {
+            const errorRecovery = new AdvancedErrorRecovery();
+            const debugError: DebugError = {
+              type: problemType as any,
+              message: 'User requested troubleshooting guide',
+              timestamp: new Date(),
+              retryCount: 0
+            };
+
+            const guide = errorRecovery.generateTroubleshootingGuide(debugError);
+            return { content: [{ type: 'text', text: JSON.stringify(guide, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to generate troubleshooting guide: ${error}` }] };
+          }
         }
 
         default:
