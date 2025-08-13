@@ -15,6 +15,8 @@ export interface JDWPConnectionInfo {
   vmName?: string;
   capabilities?: JDWPCapabilities;
   error?: string;
+  jdwpAgentDetected?: boolean;
+  hasActiveClient?: boolean;
 }
 
 export interface JDWPCapabilities {
@@ -131,9 +133,24 @@ export class JDWPValidator extends EventEmitter {
         }
       });
 
-      this.socket.on('error', (error) => {
+      this.socket.on('error', async (error) => {
         clearTimeout(timeout);
-        this.connectionInfo.error = error.message;
+
+        // Enhanced error analysis for better JDWP detection
+        if (error.message.includes('ECONNREFUSED') || error.message.includes('Connection refused')) {
+          // Check if it's a Java process that might be a JDWP agent
+          const isJavaProcess = await this.isJavaProcessOnPort();
+          if (isJavaProcess) {
+            this.connectionInfo.jdwpAgentDetected = true;
+            this.connectionInfo.hasActiveClient = true;
+            this.connectionInfo.error = 'JDWP agent detected but has active client connection';
+          } else {
+            this.connectionInfo.error = 'Port not accessible or not a JDWP agent';
+          }
+        } else {
+          this.connectionInfo.error = error.message;
+        }
+
         this.cleanup();
         resolve(this.connectionInfo);
       });
@@ -262,6 +279,26 @@ export class JDWPValidator extends EventEmitter {
       };
     }
   }
+
+  /**
+   * Check if the port is being used by a Java process
+   */
+  private async isJavaProcessOnPort(): Promise<boolean> {
+    try {
+      const { execSync } = await import('child_process');
+      const result = execSync(`lsof -i :${this.connectionInfo.port} -P -n`, {
+        encoding: 'utf-8',
+        timeout: 3000
+      });
+
+      // Check if any line contains 'java' process
+      return result.toLowerCase().includes('java');
+    } catch (error) {
+      return false;
+    }
+  }
+
+
 
   /**
    * Cleanup resources

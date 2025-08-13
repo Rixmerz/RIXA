@@ -273,7 +273,8 @@ async function main() {
     { name: 'debug_runComprehensiveDiagnostics', description: 'Run comprehensive diagnostics on Java environment', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } }, required: ['workspaceRoot'] } },
     { name: 'debug_suggestPortResolution', description: 'Suggest resolution for port conflicts', inputSchema: { type: 'object', properties: { port: { type: 'number' } }, required: ['port'] } },
     { name: 'debug_startPortMonitoring', description: 'Start continuous port monitoring', inputSchema: { type: 'object', properties: { intervalMs: { type: 'number' } } } },
-    { name: 'debug_stopPortMonitoring', description: 'Stop port monitoring', inputSchema: { type: 'object', properties: {} } }
+    { name: 'debug_stopPortMonitoring', description: 'Stop port monitoring', inputSchema: { type: 'object', properties: {} } },
+    { name: 'debug_validateJDWPConnectionEnhanced', description: 'Enhanced JDWP validation with agent detection and conflict analysis', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, timeout: { type: 'number' }, retryAttempts: { type: 'number' } }, required: ['port'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -428,38 +429,49 @@ async function main() {
             if (!probe.ok) checks.push(`Adapter unavailable: ${adapter} (${adapterCheck.prerequisite}). Install: ${adapterCheck.install}. Details: ${probe.stderr || probe.stdout || 'n/a'}`);
           }
 
-          // Advanced port analysis for Java debugging
+          // Enhanced port analysis for Java debugging with improved JDWP validation
           if (adapter === 'java') {
             try {
-              const portManager = new PortManager();
-              const portInfo = await portManager.analyzePort(port, true);
+              // Use enhanced JDWP validation
+              const validator = new JDWPValidator(host, port, { timeout: 5000, retryAttempts: 1 });
+              const connectionInfo = await validator.validateConnection();
 
-              if (portInfo.status === 'free') {
-                checks.push(`Port ${port} is not in use. Make sure your application is running with debug agent on port ${port}`);
+              if (!connectionInfo.connected && !connectionInfo.jdwpAgentDetected) {
+                checks.push(`Port ${port} is not in use or not a JDWP agent. Make sure your application is running with debug agent on port ${port}`);
                 checks.push(`For Java: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourMainClass`);
-              } else if (portInfo.status === 'debug_agent' && portInfo.debugInfo?.hasActiveClient && !forceConnect && !useObserverMode) {
-                // Suggest alternatives for existing connections
+              } else if (connectionInfo.jdwpAgentDetected && connectionInfo.hasActiveClient && !forceConnect && !useObserverMode) {
+                // JDWP agent detected but has active client - suggest alternatives
+                const portManager = new PortManager();
                 const resolutions = await portManager.suggestConflictResolution(port);
 
                 return { content: [{ type: 'text', text: JSON.stringify({
-                  error: 'Debug agent has existing client connection',
-                  portInfo,
+                  status: 'jdwp_agent_detected',
+                  message: 'JDWP agent detected but has active client connection',
+                  connectionInfo,
                   suggestedResolutions: resolutions,
                   recommendations: [
-                    'Add observerMode: true to monitor without interfering',
-                    'Add forceConnect: true to attempt connection anyway (risky)',
-                    'Try debug_createAdvancedConnection for automatic conflict resolution',
-                    'Use debug_startHybridDebugging as non-invasive alternative'
+                    '✅ Add observerMode: true to monitor without interfering (RECOMMENDED)',
+                    '⚠️ Add forceConnect: true to attempt connection anyway (may fail)',
+                    '🚀 Try debug_createAdvancedConnection for automatic conflict resolution',
+                    '🔄 Use debug_startHybridDebugging as non-invasive alternative'
                   ],
                   examples: [
-                    'debug_attachSession({ adapter: "java", port: 5005, observerMode: true })',
-                    'debug_createAdvancedConnection({ port: 5005, type: "auto", handleConflicts: true })',
+                    'debug_attachSession({ adapter: "java", port: ' + port + ', observerMode: true })',
+                    'debug_createAdvancedConnection({ port: ' + port + ', type: "auto", handleConflicts: true })',
                     'debug_startHybridDebugging({ workspaceRoot: "' + cwd + '", applicationUrl: "http://localhost:8080" })'
+                  ],
+                  nextSteps: [
+                    'Observer mode allows you to monitor the debug session without conflicts',
+                    'Advanced connection will automatically handle conflicts and suggest alternatives',
+                    'Hybrid debugging provides API testing and log analysis capabilities'
                   ]
                 }, null, 2) }] };
+              } else if (connectionInfo.connected) {
+                // Connection successful - we can proceed normally
+                console.log('JDWP connection validated successfully');
               }
             } catch (error) {
-              // If port analysis fails, continue with basic check
+              // If enhanced validation fails, fall back to basic port check
               const portFree = await isPortFree(port);
               if (portFree) {
                 checks.push(`Port ${port} is not in use. Make sure your application is running with debug agent on port ${port}`);
@@ -486,26 +498,62 @@ async function main() {
           try {
             // Enhanced Java debugging with observer mode support
             if (adapter === 'java' && useObserverMode) {
-              // Observer mode - validate connection without full attach
+              // Observer mode - enhanced validation with better detection
               const validator = new JDWPValidator(host, port, { timeout: 5000, retryAttempts: 1 });
               const connectionInfo = await validator.validateConnection();
 
               if (connectionInfo.connected) {
                 return { content: [{ type: 'text', text: JSON.stringify({
                   mode: 'observer',
-                  status: 'monitoring',
+                  status: 'monitoring_active_connection',
                   connectionInfo,
-                  message: 'Observer mode active - monitoring debug agent without interference',
+                  message: 'Observer mode active - successfully connected to debug agent',
+                  capabilities: [
+                    'Monitor debug session without interference',
+                    'View VM information and capabilities',
+                    'Non-invasive debugging observation'
+                  ],
                   recommendations: [
                     'Use debug_startHybridDebugging for active testing capabilities',
-                    'Observer mode allows monitoring without disrupting existing debug sessions'
+                    'Observer mode allows monitoring without disrupting existing debug sessions',
+                    'You can safely observe breakpoints and debugging activity'
+                  ]
+                }, null, 2) }] };
+              } else if (connectionInfo.jdwpAgentDetected) {
+                return { content: [{ type: 'text', text: JSON.stringify({
+                  mode: 'observer',
+                  status: 'monitoring_detected_agent',
+                  connectionInfo,
+                  message: 'Observer mode active - JDWP agent detected with active client',
+                  detection: {
+                    agentPresent: true,
+                    hasActiveClient: connectionInfo.hasActiveClient,
+                    canObserve: true
+                  },
+                  capabilities: [
+                    'JDWP agent confirmed on port ' + port,
+                    'Active client connection detected',
+                    'Observer mode provides non-invasive monitoring'
+                  ],
+                  recommendations: [
+                    'JDWP agent is running and accessible',
+                    'Another debugger is currently connected',
+                    'Observer mode allows you to monitor without conflicts',
+                    'Use debug_startHybridDebugging for additional testing capabilities'
                   ]
                 }, null, 2) }] };
               } else {
                 return { content: [{ type: 'text', text: JSON.stringify({
-                  error: 'Observer mode failed',
+                  mode: 'observer',
+                  status: 'no_agent_detected',
                   connectionInfo,
-                  recommendation: 'Debug agent may not be accessible or running'
+                  error: 'No JDWP agent detected on port ' + port,
+                  recommendations: [
+                    'Ensure your Java application is running with debug agent enabled',
+                    'java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=' + port + ' YourApp',
+                    'Check if the application is running on a different port',
+                    'Use debug_scanPortsAdvanced to find active debug agents'
+                  ]
                 }, null, 2) }] };
               }
             }
@@ -1323,6 +1371,69 @@ async function main() {
             return { content: [{ type: 'text', text: 'Port monitoring stopped' }] };
           } catch (error) {
             return { content: [{ type: 'text', text: `Failed to stop port monitoring: ${error}` }] };
+          }
+        }
+
+        case 'debug_validateJDWPConnectionEnhanced': {
+          const host = String(args?.host || 'localhost');
+          const port = Number(args?.port || 5005);
+          const timeout = Number(args?.timeout || 10000);
+          const retryAttempts = Number(args?.retryAttempts || 3);
+
+          try {
+            const validator = new JDWPValidator(host, port, { timeout, retryAttempts });
+            const connectionInfo = await validator.validateConnection();
+
+            // Enhanced analysis and recommendations
+            const analysis = {
+              connectionInfo,
+              analysis: {
+                portAccessible: connectionInfo.connected || connectionInfo.jdwpAgentDetected,
+                jdwpAgentPresent: connectionInfo.jdwpAgentDetected || false,
+                hasActiveClient: connectionInfo.hasActiveClient || false,
+                canConnect: connectionInfo.connected,
+                recommendedAction: ''
+              },
+              recommendations: [] as string[],
+              nextSteps: [] as string[]
+            };
+
+            // Generate specific recommendations based on the analysis
+            if (connectionInfo.connected) {
+              analysis.analysis.recommendedAction = 'direct_connection';
+              analysis.recommendations.push('✅ JDWP connection successful - you can debug normally');
+              analysis.recommendations.push('Use debug_attachSession for full debugging capabilities');
+              analysis.nextSteps.push('Set breakpoints and start debugging');
+              analysis.nextSteps.push('Use debug_setBreakpoints to add breakpoints');
+            } else if (connectionInfo.jdwpAgentDetected && connectionInfo.hasActiveClient) {
+              analysis.analysis.recommendedAction = 'observer_mode_or_hybrid';
+              analysis.recommendations.push('🔍 JDWP agent detected but has active client connection');
+              analysis.recommendations.push('✅ Use Observer Mode: debug_attachSession({ observerMode: true })');
+              analysis.recommendations.push('🔄 Use Hybrid Debugging: debug_startHybridDebugging()');
+              analysis.recommendations.push('🚀 Use Advanced Connection: debug_createAdvancedConnection({ handleConflicts: true })');
+              analysis.nextSteps.push('Choose observer mode for non-invasive monitoring');
+              analysis.nextSteps.push('Choose hybrid debugging for API testing and log analysis');
+              analysis.nextSteps.push('Choose advanced connection for automatic conflict resolution');
+            } else if (connectionInfo.jdwpAgentDetected) {
+              analysis.analysis.recommendedAction = 'retry_connection';
+              analysis.recommendations.push('🔍 JDWP agent detected but connection failed');
+              analysis.recommendations.push('🔄 Try again - agent may be temporarily busy');
+              analysis.recommendations.push('⚠️ Check firewall and network connectivity');
+              analysis.nextSteps.push('Retry connection with higher timeout');
+              analysis.nextSteps.push('Check application logs for debug agent status');
+            } else {
+              analysis.analysis.recommendedAction = 'start_debug_agent';
+              analysis.recommendations.push('❌ No JDWP agent detected on port ' + port);
+              analysis.recommendations.push('🚀 Start your application with debug agent enabled');
+              analysis.recommendations.push('📋 Command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=' + port + ' YourApp');
+              analysis.nextSteps.push('Start application with debug agent');
+              analysis.nextSteps.push('Verify application is listening on port ' + port);
+              analysis.nextSteps.push('Use debug_scanPortsAdvanced to find active agents');
+            }
+
+            return { content: [{ type: 'text', text: JSON.stringify(analysis, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Enhanced JDWP validation failed: ${error}` }] };
           }
         }
 
