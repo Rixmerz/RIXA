@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",
-    "@types/node": "^20.10.5",
+    "@types/node": "^24.2.1",
     "@types/uuid": "^9.0.7",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
