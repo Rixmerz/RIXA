@@ -2,6 +2,8 @@ import { EventEmitter } from 'events';
 import type { Logger } from '@/utils/logger.js';
 import type { AppConfig } from '@/types/config.js';
 import { ErrorType, RixaError } from '@/types/common.js';
+import { sync as globSync } from 'glob';
+import { existsSync } from 'fs';
 import { McpServer, McpConnection } from '@/mcp/server.js';
 import { SessionManager, DebugSession } from './session.js';
 import { FilesystemResourceProvider } from '@/resources/filesystem.js';
@@ -641,6 +643,54 @@ export class RixaIntegration extends EventEmitter {
           required: [],
         },
       },
+      // Java-specific and diagnostic tools
+      {
+        name: 'debug/attachSession',
+        description: 'Create and attach to an existing debug session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            adapter: { type: 'string', description: 'Debug adapter type' },
+            port: { type: 'number', description: 'Debug port to attach to' },
+            host: { type: 'string', description: 'Host to connect to' },
+            processId: { type: 'number', description: 'Process ID to attach to' },
+            cwd: { type: 'string', description: 'Working directory' },
+            env: { type: 'object', description: 'Environment variables' },
+          },
+          required: ['adapter'],
+        },
+      },
+      {
+        name: 'debug/listAdapters',
+        description: 'List supported debug adapters with availability',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: 'debug/testAdapter',
+        description: 'Test a specific adapter availability',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            lang: { type: 'string', enum: ['node', 'python', 'java', 'go', 'rust'] },
+          },
+          required: ['lang'],
+        },
+      },
+      {
+        name: 'debug/diagnoseJava',
+        description: 'Comprehensive Java debugging environment diagnosis',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspaceRoot: { type: 'string', description: 'Workspace root directory' },
+          },
+          required: [],
+        },
+      },
     ];
 
     connection.sendResponse(request.id!, { tools });
@@ -664,6 +714,26 @@ export class RixaIntegration extends EventEmitter {
     try {
       if (toolName === 'debug/createSession') {
         await this.handleCreateSession(connection, request, args);
+        return;
+      }
+
+      if (toolName === 'debug/attachSession') {
+        await this.handleAttachSession(connection, request, args);
+        return;
+      }
+
+      if (toolName === 'debug/listAdapters') {
+        await this.handleListAdapters(connection, request);
+        return;
+      }
+
+      if (toolName === 'debug/testAdapter') {
+        await this.handleTestAdapter(connection, request, args);
+        return;
+      }
+
+      if (toolName === 'debug/diagnoseJava') {
+        await this.handleDiagnoseJava(connection, request, args);
         return;
       }
 
@@ -806,11 +876,45 @@ export class RixaIntegration extends EventEmitter {
     });
   }
 
+  private findJavaDebugAdapterJar(): string | null {
+    // Common locations for Java Debug Adapter
+    const searchPaths = [
+      // VS Code extensions (macOS/Linux)
+      `${process.env['HOME']}/.vscode/extensions/vscjava.vscode-java-debug-*/server/com.microsoft.java.debug.plugin-*.jar`,
+      // VS Code extensions (Windows)
+      `${process.env['USERPROFILE']}/.vscode/extensions/vscjava.vscode-java-debug-*/server/com.microsoft.java.debug.plugin-*.jar`,
+      // Manual installation locations
+      '/usr/local/lib/java-debug-adapter/com.microsoft.java.debug.plugin*.jar',
+      '/opt/homebrew/lib/java-debug-adapter/com.microsoft.java.debug.plugin*.jar',
+      // Current directory (for development)
+      './java-debug-adapter/com.microsoft.java.debug.plugin*.jar',
+    ];
+
+    // Try to find the JAR file
+    for (const searchPath of searchPaths) {
+      try {
+        const matches = globSync(searchPath);
+        if (matches.length > 0) {
+          // Return the first (most recent) match
+          const jarPath = matches.sort().reverse()[0];
+          if (jarPath && existsSync(jarPath)) {
+            return jarPath;
+          }
+        }
+      } catch (error) {
+        // Continue searching if glob fails
+        continue;
+      }
+    }
+
+    return null;
+  }
+
   private getAdapterCommand(adapter: string): string {
     const commands: Record<string, string> = {
       node: 'node',
       python: 'python',
-      java: 'java',
+      java: 'java', // Will use JAR path in getAdapterArgs
       go: 'dlv',
       rust: 'rust-gdb',
     };
@@ -819,10 +923,19 @@ export class RixaIntegration extends EventEmitter {
   }
 
   private getAdapterArgs(adapter: string): string[] {
+    if (adapter === 'java') {
+      const jarPath = this.findJavaDebugAdapterJar();
+      if (jarPath) {
+        return ['-jar', jarPath];
+      } else {
+        // Return placeholder that will trigger helpful error message
+        return ['-jar', '/path/to/com.microsoft.java.debug.plugin.jar'];
+      }
+    }
+
     const args: Record<string, string[]> = {
       node: ['--inspect-brk=0'],
       python: ['-m', 'debugpy', '--listen', '0'],
-      java: ['-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=0'],
       go: ['dap', '--listen=127.0.0.1:0'],
       rust: ['--batch', '--ex', 'run', '--ex', 'bt', '--args'],
     };
@@ -1242,5 +1355,237 @@ export class RixaIntegration extends EventEmitter {
    */
   resetErrorStats(): void {
     this.errorHandler.resetStats();
+  }
+
+  /**
+   * Handle attach session tool call
+   */
+  private async handleAttachSession(
+    connection: McpConnection,
+    request: McpToolCallRequest,
+    args: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      const adapter = String(args?.['adapter'] || 'java');
+      const port = args?.['port'] ? Number(args['port']) : (adapter === 'java' ? 5005 : 9229);
+      const host = String(args?.['host'] || 'localhost');
+      const cwd = args?.['cwd'] ? String(args['cwd']) : process.cwd();
+
+      // Create attach configuration
+      let attachConfig: Record<string, unknown>;
+
+      if (adapter === 'java') {
+        attachConfig = {
+          type: 'java',
+          request: 'attach',
+          hostName: host,
+          port: port,
+          timeout: 30000,
+          projectName: '',
+          vmArgs: '',
+          stepFilters: {
+            classNameFilters: ['java.*', 'javax.*', 'com.sun.*', 'sun.*'],
+            skipSynthetics: true,
+            skipStaticInitializers: true,
+            skipConstructors: false
+          },
+          sourcePaths: [cwd],
+          console: 'internalConsole',
+          internalConsoleOptions: 'neverOpen'
+        };
+      } else {
+        attachConfig = {
+          type: adapter,
+          request: 'attach',
+          host: host,
+          port: port
+        };
+      }
+
+      const session = await this.sessionManager.createSession({
+        adapterConfig: {
+          transport: {
+            type: 'stdio',
+            command: this.getAdapterCommand(adapter),
+            args: this.getAdapterArgs(adapter),
+          },
+        },
+        attachConfig,
+        name: `Debug Attach Session (${adapter}:${port})`,
+        workspaceRoot: cwd,
+      });
+
+      await session.initialize();
+      await session.attach();
+
+      connection.sendResponse(request.id!, {
+        content: [
+          { type: 'text', text: 'Debug session attached successfully' },
+          { type: 'text', text: JSON.stringify({ sessionId: session.id, state: session.getState(), adapter, port, host }, null, 2) }
+        ]
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      connection.sendResponse(request.id!, {
+        content: [{ type: 'text', text: JSON.stringify({ error: 'Failed to attach debug session', details: msg }, null, 2) }],
+        isError: true
+      });
+    }
+  }
+
+  /**
+   * Handle list adapters tool call
+   */
+  private async handleListAdapters(
+    connection: McpConnection,
+    request: McpToolCallRequest
+  ): Promise<void> {
+    const adapters = {
+      node: { cmd: 'node', args: ['--version'], prerequisite: 'node (>=16)', install: 'https://nodejs.org' },
+      python: { cmd: 'python', args: ['-m', 'debugpy', '--version'], prerequisite: 'python + debugpy', install: 'pip install debugpy' },
+      java: { cmd: 'java', args: ['-version'], prerequisite: 'java (>=8) + Microsoft Java Debug Adapter', install: 'Download from: https://github.com/microsoft/java-debug/releases' },
+      go: { cmd: 'dlv', args: ['version'], prerequisite: 'delve (dlv)', install: 'go install github.com/go-delve/delve/cmd/dlv@latest' },
+      rust: { cmd: 'rust-gdb', args: ['--version'], prerequisite: 'rust + gdb', install: 'https://rustup.rs' },
+    } as const;
+
+    const list = Object.entries(adapters).map(([k, v]) => ({
+      name: k,
+      available: this.checkCommand(v.cmd, [...v.args]),
+      prerequisite: v.prerequisite,
+      install_cmd: v.install,
+    }));
+
+    connection.sendResponse(request.id!, {
+      content: [{ type: 'text', text: JSON.stringify(list, null, 2) }]
+    });
+  }
+
+  /**
+   * Handle test adapter tool call
+   */
+  private async handleTestAdapter(
+    connection: McpConnection,
+    request: McpToolCallRequest,
+    args: Record<string, unknown>
+  ): Promise<void> {
+    const lang = String(args?.['lang']);
+    const adapters = {
+      node: { cmd: 'node', args: ['--version'] },
+      python: { cmd: 'python', args: ['-m', 'debugpy', '--version'] },
+      java: { cmd: 'java', args: ['-version'] },
+      go: { cmd: 'dlv', args: ['version'] },
+      rust: { cmd: 'rust-gdb', args: ['--version'] },
+    } as const;
+
+    const adapter = adapters[lang as keyof typeof adapters];
+    if (!adapter) {
+      connection.sendResponse(request.id!, {
+        content: [{ type: 'text', text: `Unsupported language: ${lang}` }],
+        isError: true
+      });
+      return;
+    }
+
+    const result = this.testCommand(adapter.cmd, [...adapter.args]);
+    connection.sendResponse(request.id!, {
+      content: [{ type: 'text', text: JSON.stringify({ lang, ...result }, null, 2) }]
+    });
+  }
+
+  /**
+   * Handle diagnose Java tool call
+   */
+  private async handleDiagnoseJava(
+    connection: McpConnection,
+    request: McpToolCallRequest,
+    args: Record<string, unknown>
+  ): Promise<void> {
+    const workspaceRoot = args?.['workspaceRoot'] ? String(args['workspaceRoot']) : process.cwd();
+
+    const diagnosis = {
+      workspace: {
+        root: workspaceRoot,
+        accessible: existsSync(workspaceRoot)
+      },
+      javaRuntime: {
+        available: false,
+        version: '',
+        path: ''
+      },
+      debugAdapter: {
+        jarFound: false,
+        jarPath: '',
+        accessible: false
+      },
+      projectStructure: {
+        type: 'unknown',
+        classPaths: [workspaceRoot],
+        sourcePaths: [workspaceRoot],
+        buildTool: 'none'
+      },
+      recommendations: [] as string[]
+    };
+
+    // Check Java runtime
+    const javaResult = this.testCommand('java', ['-version']);
+    if (javaResult.ok) {
+      diagnosis.javaRuntime.available = true;
+      diagnosis.javaRuntime.version = javaResult.stderr?.split('\n')[0] || javaResult.stdout?.split('\n')[0] || 'unknown';
+    } else {
+      diagnosis.recommendations.push('Install Java JDK 8 or higher');
+    }
+
+    // Check debug adapter
+    const jarPath = this.findJavaDebugAdapterJar();
+    if (jarPath) {
+      diagnosis.debugAdapter.jarFound = true;
+      diagnosis.debugAdapter.jarPath = jarPath;
+      diagnosis.debugAdapter.accessible = existsSync(jarPath);
+    } else {
+      diagnosis.recommendations.push('Install VS Code Java Extension Pack or download Java Debug Adapter');
+    }
+
+    // Add recommendations based on findings
+    if (diagnosis.javaRuntime.available && diagnosis.debugAdapter.jarFound) {
+      diagnosis.recommendations.push('✅ Java debugging should work! Try: debug/attachSession with adapter="java" and port=5005');
+      diagnosis.recommendations.push('Run your Java app with: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 YourMainClass');
+    }
+
+    connection.sendResponse(request.id!, {
+      content: [{ type: 'text', text: JSON.stringify(diagnosis, null, 2) }]
+    });
+  }
+
+  /**
+   * Helper method to check if a command is available
+   */
+  private checkCommand(cmd: string, args: string[]): boolean {
+    try {
+      const { spawnSync } = require('child_process');
+      const result = spawnSync(cmd, args, { timeout: 5000, stdio: 'pipe' });
+      return result.status === 0 || result.status === null; // null means timeout, which is ok for version checks
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Helper method to test a command and get detailed results
+   */
+  private testCommand(cmd: string, args: string[]): { ok: boolean; stdout?: string; stderr?: string } {
+    try {
+      const { spawnSync } = require('child_process');
+      const result = spawnSync(cmd, args, { timeout: 5000, stdio: 'pipe', encoding: 'utf8' });
+      return {
+        ok: result.status === 0 || result.status === null,
+        stdout: result.stdout,
+        stderr: result.stderr
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        stderr: error instanceof Error ? error.message : String(error)
+      };
+    }
   }
 }

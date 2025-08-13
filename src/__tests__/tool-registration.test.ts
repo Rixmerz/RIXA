@@ -323,6 +323,10 @@ describe('Tool Registration Pipeline', () => {
         'debug/evaluateEnhanced',
         'debug/getErrorStats',
         'debug/resetErrorStats',
+        'debug/attachSession',
+        'debug/listAdapters',
+        'debug/testAdapter',
+        'debug/diagnoseJava',
       ];
 
       for (const expectedTool of expectedTools) {
