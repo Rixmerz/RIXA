@@ -21,7 +21,11 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "report:languages": "tsx scripts/generate-language-report.ts all",
+    "report:summary": "tsx scripts/generate-language-report.ts summary",
+    "report:details": "tsx scripts/generate-language-report.ts details",
+    "report:progress": "tsx scripts/generate-language-report.ts progress"
   },
   "keywords": [
     "mcp",
