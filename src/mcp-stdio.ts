@@ -19,6 +19,9 @@ import { analyzeJavaProject, detectActiveDebugPorts } from './java/enhanced-dete
 import { JDWPValidator, scanForJDWPAgents } from './java/jdwp-validator.js';
 import { HybridDebugger } from './java/hybrid-debugger.js';
 import { AdvancedErrorRecovery } from './java/error-recovery.js';
+import { PortManager } from './java/port-manager.js';
+import { ConnectionManager } from './java/connection-manager.js';
+import { InteractiveTroubleshooter } from './java/interactive-troubleshooter.js';
 import type { HybridDebugConfig } from './java/hybrid-debugger.js';
 import type { DebugError, RecoveryContext } from './java/error-recovery.js';
 
@@ -223,7 +226,7 @@ async function main() {
     { name: 'debug_ping', description: 'Ping the RIXA MCP server', inputSchema: { type: 'object', properties: { message: { type: 'string' } } } },
     { name: 'debug_version', description: 'Return RIXA version info', inputSchema: { type: 'object', properties: {} } },
     { name: 'debug_createSession', description: 'Create and launch a new debug session', inputSchema: { type: 'object', properties: { adapter: { type: 'string' }, program: { type: 'string' }, args: { type: 'array', items: { type: 'string' } }, cwd: { type: 'string' }, env: { type: 'object' } }, required: ['adapter', 'program'] } },
-    { name: 'debug_attachSession', description: 'Create and attach to an existing debug session', inputSchema: { type: 'object', properties: { adapter: { type: 'string' }, port: { type: 'number' }, host: { type: 'string' }, processId: { type: 'number' }, cwd: { type: 'string' }, env: { type: 'object' } }, required: ['adapter'] } },
+    { name: 'debug_attachSession', description: 'Create and attach to an existing debug session with intelligent conflict resolution', inputSchema: { type: 'object', properties: { adapter: { type: 'string' }, port: { type: 'number' }, host: { type: 'string' }, processId: { type: 'number' }, cwd: { type: 'string' }, env: { type: 'object' }, forceConnect: { type: 'boolean' }, observerMode: { type: 'boolean' } }, required: ['adapter'] } },
     { name: 'debug_continue', description: 'Continue execution', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, singleThread: { type: 'boolean' } }, required: ['sessionId', 'threadId'] } },
     { name: 'debug_pause', description: 'Pause execution', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId', 'threadId'] } },
     { name: 'debug_stepOver', description: 'Step over (next line)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, granularity: { type: 'string', enum: ['statement','line','instruction'] } }, required: ['sessionId','threadId'] } },
@@ -260,7 +263,17 @@ async function main() {
     { name: 'debug_executeApiTest', description: 'Execute API test for debugging', inputSchema: { type: 'object', properties: { endpoint: { type: 'string' }, method: { type: 'string' }, data: { type: 'object' } }, required: ['endpoint'] } },
     { name: 'debug_addBreakpointSimulation', description: 'Add breakpoint simulation for log analysis', inputSchema: { type: 'object', properties: { className: { type: 'string' }, methodName: { type: 'string' }, logLevel: { type: 'string', enum: ['INFO', 'DEBUG', 'WARN', 'ERROR'] } }, required: ['className', 'methodName'] } },
     { name: 'debug_attemptErrorRecovery', description: 'Attempt automatic error recovery with fallback strategies', inputSchema: { type: 'object', properties: { errorType: { type: 'string', enum: ['connection', 'handshake', 'configuration', 'timeout', 'unknown'] }, errorMessage: { type: 'string' }, workspaceRoot: { type: 'string' } }, required: ['errorType', 'errorMessage', 'workspaceRoot'] } },
-    { name: 'debug_getTroubleshootingGuide', description: 'Get troubleshooting guide for debugging issues', inputSchema: { type: 'object', properties: { problemType: { type: 'string' } }, required: ['problemType'] } }
+    { name: 'debug_getTroubleshootingGuide', description: 'Get troubleshooting guide for debugging issues', inputSchema: { type: 'object', properties: { problemType: { type: 'string' } }, required: ['problemType'] } },
+    { name: 'debug_scanPortsAdvanced', description: 'Advanced port scanning with detailed information', inputSchema: { type: 'object', properties: { portStart: { type: 'number' }, portEnd: { type: 'number' }, deepScan: { type: 'boolean' } } } },
+    { name: 'debug_createAdvancedConnection', description: 'Create debug connection with intelligent conflict resolution', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, type: { type: 'string', enum: ['jdwp', 'hybrid', 'auto'] }, handleConflicts: { type: 'boolean' }, observerMode: { type: 'boolean' }, projectPath: { type: 'string' } }, required: ['port'] } },
+    { name: 'debug_listActiveSessions', description: 'List all active debug sessions', inputSchema: { type: 'object', properties: {} } },
+    { name: 'debug_disconnectSession', description: 'Disconnect a debug session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_startInteractiveTroubleshooting', description: 'Start interactive troubleshooting session', inputSchema: { type: 'object', properties: { problem: { type: 'string' }, workspaceRoot: { type: 'string' }, targetPort: { type: 'number' } }, required: ['problem', 'workspaceRoot'] } },
+    { name: 'debug_getTroubleshootingSession', description: 'Get troubleshooting session status', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_runComprehensiveDiagnostics', description: 'Run comprehensive diagnostics on Java environment', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } }, required: ['workspaceRoot'] } },
+    { name: 'debug_suggestPortResolution', description: 'Suggest resolution for port conflicts', inputSchema: { type: 'object', properties: { port: { type: 'number' } }, required: ['port'] } },
+    { name: 'debug_startPortMonitoring', description: 'Start continuous port monitoring', inputSchema: { type: 'object', properties: { intervalMs: { type: 'number' } } } },
+    { name: 'debug_stopPortMonitoring', description: 'Stop port monitoring', inputSchema: { type: 'object', properties: {} } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -402,8 +415,10 @@ async function main() {
           const port = args?.port ? Number(args.port) : (adapter === 'java' ? 5005 : 9229);
           const host = String(args?.host || 'localhost');
           const cwd = args?.cwd ? String(args.cwd) : process.cwd();
+          const forceConnect = Boolean(args?.forceConnect);
+          const useObserverMode = Boolean(args?.observerMode);
 
-          // Preflight validation for attach mode
+          // Enhanced preflight validation with intelligent conflict resolution
           const checks: string[] = [];
           if (!(await checkPathReadable(cwd))) checks.push(`CWD not accessible: ${cwd}`);
           const adapterCheck = adapters[adapter as keyof typeof adapters];
@@ -413,29 +428,102 @@ async function main() {
             if (!probe.ok) checks.push(`Adapter unavailable: ${adapter} (${adapterCheck.prerequisite}). Install: ${adapterCheck.install}. Details: ${probe.stderr || probe.stdout || 'n/a'}`);
           }
 
-          // Check if port is accessible (for attach mode, port should be in use)
-          const portFree = await isPortFree(port);
-          if (portFree) {
-            checks.push(`Port ${port} is not in use. Make sure your application is running with debug agent on port ${port}`);
-            checks.push(`For Java: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourMainClass`);
+          // Advanced port analysis for Java debugging
+          if (adapter === 'java') {
+            try {
+              const portManager = new PortManager();
+              const portInfo = await portManager.analyzePort(port, true);
+
+              if (portInfo.status === 'free') {
+                checks.push(`Port ${port} is not in use. Make sure your application is running with debug agent on port ${port}`);
+                checks.push(`For Java: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourMainClass`);
+              } else if (portInfo.status === 'debug_agent' && portInfo.debugInfo?.hasActiveClient && !forceConnect && !useObserverMode) {
+                // Suggest alternatives for existing connections
+                const resolutions = await portManager.suggestConflictResolution(port);
+
+                return { content: [{ type: 'text', text: JSON.stringify({
+                  error: 'Debug agent has existing client connection',
+                  portInfo,
+                  suggestedResolutions: resolutions,
+                  recommendations: [
+                    'Add observerMode: true to monitor without interfering',
+                    'Add forceConnect: true to attempt connection anyway (risky)',
+                    'Try debug_createAdvancedConnection for automatic conflict resolution',
+                    'Use debug_startHybridDebugging as non-invasive alternative'
+                  ],
+                  examples: [
+                    'debug_attachSession({ adapter: "java", port: 5005, observerMode: true })',
+                    'debug_createAdvancedConnection({ port: 5005, type: "auto", handleConflicts: true })',
+                    'debug_startHybridDebugging({ workspaceRoot: "' + cwd + '", applicationUrl: "http://localhost:8080" })'
+                  ]
+                }, null, 2) }] };
+              }
+            } catch (error) {
+              // If port analysis fails, continue with basic check
+              const portFree = await isPortFree(port);
+              if (portFree) {
+                checks.push(`Port ${port} is not in use. Make sure your application is running with debug agent on port ${port}`);
+                checks.push(`For Java: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourMainClass`);
+              }
+            }
+          } else {
+            // Basic port check for non-Java adapters
+            const portFree = await isPortFree(port);
+            if (portFree) {
+              checks.push(`Port ${port} is not in use. Make sure your application is running with debug agent on port ${port}`);
+            }
           }
 
-          if (checks.length) {
-            return { content: [{ type: 'text', text: JSON.stringify({ error: 'Attach preflight failed', issues: checks, recommendation: `Ensure your ${adapter} application is running with debug agent on port ${port}` }, null, 2) }] };
+          if (checks.length && !forceConnect) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              error: 'Attach preflight failed',
+              issues: checks,
+              recommendation: `Ensure your ${adapter} application is running with debug agent on port ${port}`,
+              hint: 'Add forceConnect: true to bypass these checks'
+            }, null, 2) }] };
           }
 
           try {
+            // Enhanced Java debugging with observer mode support
+            if (adapter === 'java' && useObserverMode) {
+              // Observer mode - validate connection without full attach
+              const validator = new JDWPValidator(host, port, { timeout: 5000, retryAttempts: 1 });
+              const connectionInfo = await validator.validateConnection();
+
+              if (connectionInfo.connected) {
+                return { content: [{ type: 'text', text: JSON.stringify({
+                  mode: 'observer',
+                  status: 'monitoring',
+                  connectionInfo,
+                  message: 'Observer mode active - monitoring debug agent without interference',
+                  recommendations: [
+                    'Use debug_startHybridDebugging for active testing capabilities',
+                    'Observer mode allows monitoring without disrupting existing debug sessions'
+                  ]
+                }, null, 2) }] };
+              } else {
+                return { content: [{ type: 'text', text: JSON.stringify({
+                  error: 'Observer mode failed',
+                  connectionInfo,
+                  recommendation: 'Debug agent may not be accessible or running'
+                }, null, 2) }] };
+              }
+            }
+
             // Create attach configuration based on adapter
             let attachConfig: Record<string, unknown>;
 
             if (adapter === 'java') {
+              // Enhanced Java configuration with project analysis
+              const projectInfo = analyzeJavaProject(cwd);
+
               attachConfig = {
                 type: 'java',
                 request: 'attach',
                 hostName: host,
                 port: port,
-                timeout: 30000,
-                projectName: '',
+                timeout: forceConnect ? 45000 : 30000,
+                projectName: projectInfo.mainClass || '',
                 vmArgs: '',
                 // Advanced Java debugging configuration
                 stepFilters: {
@@ -444,9 +532,9 @@ async function main() {
                   skipStaticInitializers: true,
                   skipConstructors: false
                 },
-                // Source path configuration
-                sourcePaths: [cwd],
-                classPaths: detectJavaClasspath(cwd),
+                // Enhanced source path configuration
+                sourcePaths: [cwd, ...projectInfo.sourcePaths],
+                classPaths: projectInfo.classPaths.length > 0 ? projectInfo.classPaths : detectJavaClasspath(cwd),
                 // Console configuration
                 console: 'internalConsole',
                 internalConsoleOptions: 'neverOpen'
@@ -457,7 +545,7 @@ async function main() {
                 request: 'attach',
                 address: host,
                 port: port,
-                timeout: 30000
+                timeout: forceConnect ? 45000 : 30000
               };
             } else if (adapter === 'python') {
               attachConfig = {
@@ -496,12 +584,53 @@ async function main() {
             return {
               content: [
                 { type: 'text', text: 'Debug session attached successfully' },
-                { type: 'text', text: JSON.stringify({ sessionId: session.id, state: session.getState(), adapter, port, host }, null, 2) }
+                { type: 'text', text: JSON.stringify({
+                  sessionId: session.id,
+                  state: session.getState(),
+                  adapter,
+                  port,
+                  host,
+                  mode: useObserverMode ? 'observer' : 'normal',
+                  recommendations: [
+                    'Debug session is now active',
+                    'You can set breakpoints and debug normally',
+                    'Use debug_setBreakpoints to add breakpoints',
+                    'Use debug_continue, debug_stepOver, etc. for debugging'
+                  ]
+                }, null, 2) }
               ]
             };
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            return { content: [{ type: 'text', text: JSON.stringify({ error: 'Failed to attach debug session', details: msg, hints: [ `Verify ${adapter} application is running with debug agent`, `Check port ${port} is accessible`, `For Java: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourApp` ] }, null, 2) }] };
+
+            // Enhanced error handling with recovery suggestions
+            const errorResponse: any = {
+              error: 'Failed to attach debug session',
+              details: msg,
+              hints: [
+                `Verify ${adapter} application is running with debug agent`,
+                `Check port ${port} is accessible`,
+                `For Java: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourApp`
+              ]
+            };
+
+            // Add specific recovery suggestions
+            if (msg.includes('Connection refused') || msg.includes('timeout')) {
+              errorResponse.recovery = {
+                suggestions: [
+                  'Try debug_createAdvancedConnection for intelligent conflict resolution',
+                  'Use debug_startHybridDebugging as non-invasive alternative',
+                  'Run debug_attemptErrorRecovery for automatic problem resolution'
+                ],
+                examples: [
+                  `debug_createAdvancedConnection({ port: ${port}, type: "auto", handleConflicts: true })`,
+                  `debug_startHybridDebugging({ workspaceRoot: "${cwd}" })`,
+                  `debug_attemptErrorRecovery({ errorType: "connection", errorMessage: "${msg}" })`
+                ]
+              };
+            }
+
+            return { content: [{ type: 'text', text: JSON.stringify(errorResponse, null, 2) }] };
           }
         }
 
@@ -1024,6 +1153,176 @@ async function main() {
             return { content: [{ type: 'text', text: JSON.stringify(guide, null, 2) }] };
           } catch (error) {
             return { content: [{ type: 'text', text: `Failed to generate troubleshooting guide: ${error}` }] };
+          }
+        }
+
+        case 'debug_scanPortsAdvanced': {
+          const portStart = Number(args?.portStart || 5000);
+          const portEnd = Number(args?.portEnd || 9999);
+          const deepScan = Boolean(args?.deepScan !== false);
+
+          try {
+            const portManager = new PortManager();
+            const ports = await portManager.scanPorts({
+              portRange: { start: portStart, end: portEnd },
+              deepScan,
+              includeSystemPorts: false,
+              timeout: 5000
+            });
+            return { content: [{ type: 'text', text: JSON.stringify(ports, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Advanced port scan failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_createAdvancedConnection': {
+          const host = String(args?.host || 'localhost');
+          const port = Number(args?.port || 5005);
+          const type = String(args?.type || 'auto') as 'jdwp' | 'hybrid' | 'auto';
+          const handleConflicts = Boolean(args?.handleConflicts !== false);
+          const observerMode = Boolean(args?.observerMode);
+          const projectPath = args?.projectPath ? String(args.projectPath) : undefined;
+
+          try {
+            const connectionManager = new ConnectionManager();
+            const connectionOptions: any = {
+              host,
+              port,
+              type,
+              handleConflicts,
+              observerMode,
+              timeout: 10000,
+              retryAttempts: 3
+            };
+
+            if (projectPath) {
+              connectionOptions.projectPath = projectPath;
+            }
+
+            const result = await connectionManager.createConnection(connectionOptions);
+
+            // Store connection manager globally for session management
+            (global as any).connectionManager = connectionManager;
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Advanced connection failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_listActiveSessions': {
+          try {
+            const connectionManager = (global as any).connectionManager;
+            if (!connectionManager) {
+              return { content: [{ type: 'text', text: 'No connection manager active. Create a connection first.' }] };
+            }
+
+            const sessions = connectionManager.getActiveSessions();
+            return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to list sessions: ${error}` }] };
+          }
+        }
+
+        case 'debug_disconnectSession': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const connectionManager = (global as any).connectionManager;
+            if (!connectionManager) {
+              return { content: [{ type: 'text', text: 'No connection manager active.' }] };
+            }
+
+            const success = await connectionManager.disconnectSession(sessionId);
+            return { content: [{ type: 'text', text: success ? 'Session disconnected successfully' : 'Failed to disconnect session' }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to disconnect session: ${error}` }] };
+          }
+        }
+
+        case 'debug_startInteractiveTroubleshooting': {
+          const problem = String(args?.problem);
+          const workspaceRoot = String(args?.workspaceRoot);
+          const targetPort = args?.targetPort ? Number(args.targetPort) : undefined;
+
+          try {
+            const troubleshooter = new InteractiveTroubleshooter();
+            const session = await troubleshooter.startTroubleshooting(problem, workspaceRoot, targetPort);
+
+            // Store troubleshooter globally
+            (global as any).troubleshooter = troubleshooter;
+
+            return { content: [{ type: 'text', text: JSON.stringify(session, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to start troubleshooting: ${error}` }] };
+          }
+        }
+
+        case 'debug_getTroubleshootingSession': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const troubleshooter = (global as any).troubleshooter;
+            if (!troubleshooter) {
+              return { content: [{ type: 'text', text: 'No troubleshooter active. Start troubleshooting first.' }] };
+            }
+
+            const session = troubleshooter.getTroubleshootingSession(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify(session, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get troubleshooting session: ${error}` }] };
+          }
+        }
+
+        case 'debug_runComprehensiveDiagnostics': {
+          const workspaceRoot = String(args?.workspaceRoot);
+
+          try {
+            const troubleshooter = new InteractiveTroubleshooter();
+            const diagnostics = await troubleshooter.runComprehensiveDiagnostics(workspaceRoot);
+            return { content: [{ type: 'text', text: JSON.stringify(diagnostics, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Comprehensive diagnostics failed: ${error}` }] };
+          }
+        }
+
+        case 'debug_suggestPortResolution': {
+          const port = Number(args?.port || 5005);
+
+          try {
+            const portManager = new PortManager();
+            const resolutions = await portManager.suggestConflictResolution(port);
+            return { content: [{ type: 'text', text: JSON.stringify(resolutions, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to suggest port resolution: ${error}` }] };
+          }
+        }
+
+        case 'debug_startPortMonitoring': {
+          const intervalMs = Number(args?.intervalMs || 30000);
+
+          try {
+            const portManager = (global as any).portManager || new PortManager();
+            (global as any).portManager = portManager;
+
+            portManager.startMonitoring(intervalMs);
+            return { content: [{ type: 'text', text: `Port monitoring started with ${intervalMs}ms interval` }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to start port monitoring: ${error}` }] };
+          }
+        }
+
+        case 'debug_stopPortMonitoring': {
+          try {
+            const portManager = (global as any).portManager;
+            if (!portManager) {
+              return { content: [{ type: 'text', text: 'No port monitoring active.' }] };
+            }
+
+            portManager.stopMonitoring();
+            return { content: [{ type: 'text', text: 'Port monitoring stopped' }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to stop port monitoring: ${error}` }] };
           }
         }
 

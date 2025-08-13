@@ -319,18 +319,33 @@ export class JDWPValidator extends EventEmitter {
 export async function scanForJDWPAgents(portRange: { start: number; end: number } = { start: 5000, end: 9999 }): Promise<JDWPConnectionInfo[]> {
   const activeAgents: JDWPConnectionInfo[] = [];
   const commonPorts = [5005, 8000, 8080, 9999]; // Common debug ports
-  
+
   // First check common ports
   for (const port of commonPorts) {
     if (port >= portRange.start && port <= portRange.end) {
-      const isActive = await JDWPValidator.quickValidate('localhost', port);
-      if (isActive) {
-        const fullInfo = await JDWPValidator.fullValidate('localhost', port);
-        activeAgents.push(fullInfo);
+      try {
+        const isActive = await JDWPValidator.quickValidate('localhost', port);
+        if (isActive) {
+          const fullInfo = await JDWPValidator.fullValidate('localhost', port);
+          activeAgents.push(fullInfo);
+        }
+      } catch (error) {
+        // Port might be in use but not accessible for new connections
+        // This is common when a debug agent already has a client connected
+        console.warn(`Port ${port} detected but not accessible for new connections`);
+
+        // Still add it to the list as "detected but occupied"
+        activeAgents.push({
+          host: 'localhost',
+          port: port,
+          connected: false,
+          handshakeSuccessful: false,
+          error: 'Port in use by existing debug session'
+        });
       }
     }
   }
-  
+
   return activeAgents;
 }
 
