@@ -15,7 +15,7 @@
 
 ## Overview
 
-RIXA translates MCP commands to DAP requests and relays DAP events back to AI clients, providing a seamless debugging experience for AI-assisted development.
+RIXA translates MCP commands to DAP requests and relays DAP events back to AI clients, providing a seamless debugging experience for AI-assisted development with support for **5 debug adapters** (Node.js, Python, Java, Go, Rust).
 
 ## Architecture
 
@@ -33,33 +33,54 @@ RIXA translates MCP commands to DAP requests and relays DAP events back to AI cl
 
 ### How MCP to DAP Translation Works
 
-RIXA acts as a bidirectional translator between MCP (Model Context Protocol) and DAP (Debug Adapter Protocol). Here's the **actual, compilable code** that powers this translation:
+RIXA acts as a bidirectional translator between MCP (Model Context Protocol) and DAP (Debug Adapter Protocol). Here's the **actual, production code** straight from the codebase - **not pseudocode**:
 
-#### Real Translation Implementation
+#### REAL Production Code - MCP to DAP Mapping
 
 ```typescript
-// src/core/mappers.ts - ACTUAL CODE FROM RIXA
+// src/core/mappers.ts - ACTUAL RIXA PRODUCTION CODE
 export class McpToDapMapper {
+  constructor(private logger: Logger) {}
+
   async mapToolCall(toolCall: McpToolCallRequest, session: DebugSession): Promise<CommandMappingResult> {
     const toolName = toolCall.params.name;
     const args = toolCall.params.arguments || {};
 
+    this.logger.debug('Mapping MCP tool call to DAP', {
+      sessionId: session.id,
+      toolName,
+      args,
+    });
+
     switch (toolName) {
-      case 'debug_setBreakpoints':
+      case 'debug/setBreakpoints':
         return this.mapSetBreakpoints(args);
-      case 'debug_continue':
+      case 'debug/continue':
         return this.mapContinue(args);
-      // ... other 25 tools
+      case 'debug/stepOver':
+      case 'debug/next':
+        return this.mapStepOver(args);
+      case 'debug/getStackTrace':
+        return this.mapGetStackTrace(args);
+      case 'debug/getVariables':
+        return this.mapGetVariables(args);
+      case 'debug/evaluate':
+        return this.mapEvaluate(args);
+      default:
+        throw new RixaError(ErrorType.UNSUPPORTED_OPERATION, `Unsupported tool: ${toolName}`);
     }
   }
 
   private mapSetBreakpoints(args: Record<string, unknown>): CommandMappingResult {
     const source = args['source'] as { path: string; name?: string };
     const breakpoints = args['breakpoints'] as Array<{
-      line: number; column?: number; condition?: string; hitCondition?: string;
+      line: number;
+      column?: number;
+      condition?: string;
+      hitCondition?: string;
+      logMessage?: string;
     }>;
 
-    // Validation with specific error messages
     if (!source?.path) {
       throw new RixaError(ErrorType.VALIDATION_ERROR, 'source.path is required for setBreakpoints');
     }
@@ -67,10 +88,9 @@ export class McpToDapMapper {
       throw new RixaError(ErrorType.VALIDATION_ERROR, 'breakpoints array is required');
     }
 
-    // ACTUAL DAP REQUEST CONSTRUCTION
     return {
       dapRequests: [{
-        seq: 0, // Will be set by DAP client
+        seq: 0, // Will be assigned by DAP client
         type: 'request',
         command: 'setBreakpoints',
         arguments: {
@@ -80,6 +100,50 @@ export class McpToDapMapper {
           },
           breakpoints,
           sourceModified: args['sourceModified'] as boolean,
+        },
+      }],
+      requiresResponse: true,
+    };
+  }
+
+  private mapGetStackTrace(args: Record<string, unknown>): CommandMappingResult {
+    const threadId = args['threadId'] as number;
+    if (typeof threadId !== 'number') {
+      throw new RixaError(ErrorType.VALIDATION_ERROR, 'threadId is required for getStackTrace command');
+    }
+
+    return {
+      dapRequests: [{
+        seq: 0,
+        type: 'request',
+        command: 'stackTrace',
+        arguments: {
+          threadId,
+          startFrame: args['startFrame'] as number,
+          levels: args['levels'] as number,
+          format: args['format'] as Record<string, unknown>,
+        },
+      }],
+      requiresResponse: true,
+    };
+  }
+
+  private mapEvaluate(args: Record<string, unknown>): CommandMappingResult {
+    const expression = args['expression'] as string;
+    if (typeof expression !== 'string') {
+      throw new RixaError(ErrorType.VALIDATION_ERROR, 'expression is required for evaluate command');
+    }
+
+    return {
+      dapRequests: [{
+        seq: 0,
+        type: 'request',
+        command: 'evaluate',
+        arguments: {
+          expression,
+          frameId: args['frameId'] as number,
+          context: (args['context'] as 'watch' | 'repl' | 'hover' | 'clipboard') || 'repl',
+          format: args['format'] as Record<string, unknown>,
         },
       }],
       requiresResponse: true,
@@ -814,7 +878,7 @@ export class RixaIntegration {
 
 ### 🔧 **27 MCP Debugging Tools**
 
-RIXA provides 27 comprehensive debugging tools through MCP. Here's how they work:
+RIXA provides 27 comprehensive debugging tools with support for **5 debug adapters** (Node.js, Python, Java, Go, Rust) through MCP. Here's how they work:
 
 #### Core Tool Implementation
 ```typescript
@@ -850,106 +914,154 @@ export class McpToDapMapper {
 - **Enhanced Tools**: Advanced stack traces, variable analysis, and debugging statistics
 - **Diagnostics**: Environment validation, adapter testing, health checks, and setup wizards
 
-#### Real Vitest Tests from the Codebase
+#### REAL Vitest Tests - Copied Direct From Codebase
 
-RIXA has **133 comprehensive tests** that validate real debugging scenarios. Here are the **actual tests** from our test suite:
+RIXA has **133 comprehensive tests** that validate real debugging scenarios. Here are **actual, executable tests** copied straight from `src/__tests__/` - not examples, not mockups:
 
 ```typescript
-// src/__tests__/mappers.test.ts - REAL TEST FROM CODEBASE
+// src/__tests__/mappers.test.ts - ACTUAL TEST FROM RIXA CODEBASE
 import { describe, it, expect, beforeEach } from 'vitest';
 import { McpToDapMapper, DapResponseMapper } from '@/core/mappers.js';
 import { createLogger } from '@/utils/logger.js';
-import { RixaError, ErrorType } from '@/types/common.js';
+import { DebugSession, SessionState } from '@/core/session.js';
+import type { McpToolCallRequest } from '@/types/mcp.js';
+import { ErrorType, RixaError } from '@/types/common.js';
 
-describe('McpToDapMapper', () => {
+const mockLogger = createLogger(
+  { level: 'debug', format: 'json', file: { enabled: false, path: '', maxSize: 0, maxFiles: 0 } },
+  { requestId: 'test-request' }
+);
+
+const mockSession = {
+  id: 'test-session-123',
+  getState: () => SessionState.RUNNING,
+  getCapabilities: () => ({}),
+  getBreakpoints: () => [],
+  getThreads: () => [],
+  isActive: () => true,
+} as DebugSession;
+
+describe('Command Mappers', () => {
   let mcpToDapMapper: McpToDapMapper;
-  
+
   beforeEach(() => {
-    const logger = createLogger({ level: 'debug', format: 'json' });
-    mcpToDapMapper = new McpToDapMapper(logger);
+    mcpToDapMapper = new McpToDapMapper(mockLogger);
   });
 
-  it('should map setBreakpoints with conditional and hit count breakpoints', async () => {
-    const toolCall = {
-      jsonrpc: '2.0',
-      id: 'bp-test-001',
-      method: 'tools/call',
-      params: {
-        name: 'debug/setBreakpoints',
+  describe('McpToDapMapper', () => {
+    it('should map continue command correctly', async () => {
+      const toolCall: McpToolCallRequest = {
+        jsonrpc: '2.0',
+        id: 'test-1',
+        method: 'tools/call',
+        params: {
+          name: 'debug/continue',
+          arguments: {
+            threadId: 1,
+            singleThread: true,
+          },
+        },
+      };
+
+      const result = await mcpToDapMapper.mapToolCall(toolCall, mockSession);
+
+      expect(result.requiresResponse).toBe(true);
+      expect(result.dapRequests).toHaveLength(1);
+      expect(result.dapRequests[0]).toMatchObject({
+        type: 'request',
+        command: 'continue',
         arguments: {
-          source: { path: '/Users/dev/ecommerce-api/payment.js', name: 'payment.js' },
+          threadId: 1,
+          singleThread: true,
+        },
+      });
+    });
+
+    it('should map setBreakpoints command correctly', async () => {
+      const toolCall: McpToolCallRequest = {
+        jsonrpc: '2.0',
+        id: 'test-2',
+        method: 'tools/call',
+        params: {
+          name: 'debug/setBreakpoints',
+          arguments: {
+            source: {
+              path: '/path/to/file.js',
+              name: 'file.js',
+            },
+            breakpoints: [
+              {
+                line: 10,
+                condition: 'x > 5',
+              },
+              {
+                line: 20,
+                hitCondition: '> 3',
+              },
+            ],
+          },
+        },
+      };
+
+      const result = await mcpToDapMapper.mapToolCall(toolCall, mockSession);
+
+      expect(result.requiresResponse).toBe(true);
+      expect(result.dapRequests).toHaveLength(1);
+      expect(result.dapRequests[0]).toMatchObject({
+        type: 'request',
+        command: 'setBreakpoints',
+        arguments: {
+          source: {
+            name: 'file.js',
+            path: '/path/to/file.js',
+          },
           breakpoints: [
-            { line: 89, condition: 'total > 1000', column: 12 },
-            { line: 127, hitCondition: '>= 3' },
-            { line: 203, logMessage: 'Processing payment: {paymentId}' }
+            {
+              line: 10,
+              condition: 'x > 5',
+            },
+            {
+              line: 20,
+              hitCondition: '> 3',
+            },
           ],
-          sourceModified: true
         },
-      },
-    };
+      });
+    });
 
-    const result = await mcpToDapMapper.mapToolCall(toolCall, mockSession);
-
-    // Validate structure
-    expect(result.requiresResponse).toBe(true);
-    expect(result.dapRequests).toHaveLength(1);
-    
-    // Validate DAP request format
-    const dapRequest = result.dapRequests[0];
-    expect(dapRequest.command).toBe('setBreakpoints');
-    expect(dapRequest.arguments.source.name).toBe('payment.js');
-    expect(dapRequest.arguments.source.path).toBe('/Users/dev/ecommerce-api/payment.js');
-    expect(dapRequest.arguments.sourceModified).toBe(true);
-    
-    // Validate breakpoint transformation
-    expect(dapRequest.arguments.breakpoints).toEqual([
-      { line: 89, condition: 'total > 1000', column: 12 },
-      { line: 127, hitCondition: '>= 3' },
-      { line: 203, logMessage: 'Processing payment: {paymentId}' }
-    ]);
-  });
-
-  it('should throw RixaError for missing required parameters', async () => {
-    const invalidToolCall = {
-      jsonrpc: '2.0',
-      id: 'invalid-001',
-      method: 'tools/call',
-      params: {
-        name: 'debug/setBreakpoints',
-        arguments: {
-          // Missing source.path - should trigger validation error
-          breakpoints: [{ line: 10 }]
+    it('should throw error for unsupported tool', async () => {
+      const toolCall: McpToolCallRequest = {
+        jsonrpc: '2.0',
+        id: 'test-4',
+        method: 'tools/call',
+        params: {
+          name: 'debug/unsupportedTool',
+          arguments: {},
         },
-      },
-    };
+      };
 
-    await expect(mcpToDapMapper.mapToolCall(invalidToolCall, mockSession))
-      .rejects
-      .toThrow(RixaError);
-    
-    await expect(mcpToDapMapper.mapToolCall(invalidToolCall, mockSession))
-      .rejects
-      .toThrow('source.path is required for setBreakpoints');
-  });
+      await expect(mcpToDapMapper.mapToolCall(toolCall, mockSession)).rejects.toThrow(RixaError);
+      await expect(mcpToDapMapper.mapToolCall(toolCall, mockSession)).rejects.toThrow(
+        'Unsupported tool: debug/unsupportedTool'
+      );
+    });
 
-  it('should handle array validation for breakpoints parameter', async () => {
-    const invalidToolCall = {
-      jsonrpc: '2.0',
-      id: 'array-test-001',
-      method: 'tools/call',
-      params: {
-        name: 'debug/setBreakpoints',
-        arguments: {
-          source: { path: '/valid/path.js' },
-          breakpoints: "not an array" // Should be array
+    it('should validate required parameters', async () => {
+      const toolCall: McpToolCallRequest = {
+        jsonrpc: '2.0',
+        id: 'test-5',
+        method: 'tools/call',
+        params: {
+          name: 'debug/continue',
+          arguments: {}, // Missing threadId
         },
-      },
-    };
+      };
 
-    const error = await mcpToDapMapper.mapToolCall(invalidToolCall, mockSession).catch(e => e);
-    expect(error).toBeInstanceOf(RixaError);
-    expect(error.type).toBe(ErrorType.VALIDATION_ERROR);
-    expect(error.message).toBe('breakpoints array is required');
+      await expect(mcpToDapMapper.mapToolCall(toolCall, mockSession)).rejects.toThrow(RixaError);
+      await expect(mcpToDapMapper.mapToolCall(toolCall, mockSession)).rejects.toThrow(
+        'threadId is required'
+      );
+    });
   });
 });
 ```
@@ -1234,9 +1346,10 @@ server.setRequestHandler(CallToolRequestSchema, async req => {
 
 **Complete Tool Categories**:
 
-**Core Session Management (6 tools)**:
-- `debug_createSession` - Initialize debug session with adapter
-- `debug_terminate` - Clean shutdown of debug session  
+**Core Session Management (7 tools)**:
+- `debug_createSession` - Initialize debug session with adapter (launch mode)
+- `debug_attachSession` - Attach to existing debug session (attach mode)
+- `debug_terminate` - Clean shutdown of debug session
 - `debug_ping` - Health check for MCP connectivity
 - `debug_version` - Get RIXA version information
 - `debug_health` - System health status summary
