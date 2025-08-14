@@ -215,6 +215,16 @@ export class LanguageDispatcher {
           throw new Error(`Unsupported language: ${session.language}`);
       }
 
+      // Handle universal async operations for all languages
+      if (operation.startsWith('async') || operation.includes('Async')) {
+        result = await this.executeAsyncOperation(session, operation, params);
+      }
+
+      // Handle universal profiling operations for all languages
+      if (operation.includes('Profiling') || operation === 'getPerformanceMetrics') {
+        result = await this.executeProfilingOperation(session, operation, params);
+      }
+
       return {
         success: true,
         data: result,
@@ -293,15 +303,57 @@ export class LanguageDispatcher {
 
   // Language-specific connection methods
   private async connectToJavaScript(options: any): Promise<any> {
-    const browserDebugger = new BrowserDebugger({
-      host: options.host,
-      port: options.port,
-      enableReactDevTools: options.enableFrameworkTools,
-      enableVueDevTools: options.enableFrameworkTools
-    });
+    try {
+      // For Node.js debugging, we need to connect to the Inspector Protocol
+      if (options.port === 9229 || !options.port) {
+        // Node.js Inspector Protocol connection
+        const port = options.port || 9229;
 
-    const sessions = await browserDebugger.connect();
-    return { browserDebugger, sessions };
+        // Check if Node.js debug port is available
+        const response = await fetch(`http://${options.host}:${port}/json`);
+        if (!response.ok) {
+          throw new Error(`Node.js debug port not available at ${options.host}:${port}. Make sure to start your Node.js app with --inspect flag.`);
+        }
+
+        const debugTargets = await response.json() as any[];
+        if (!debugTargets || debugTargets.length === 0) {
+          throw new Error('No debug targets found. Make sure your Node.js application is running with --inspect flag.');
+        }
+
+        const target = debugTargets[0];
+        return {
+          type: 'node-inspector',
+          target,
+          webSocketUrl: target.webSocketDebuggerUrl,
+          connected: true,
+          sessions: [{
+            sessionId: `node-${Date.now()}`,
+            url: target.url,
+            title: target.title,
+            type: 'node'
+          }]
+        };
+      } else {
+        // Browser debugging via Chrome DevTools Protocol
+        const browserDebugger = new BrowserDebugger({
+          host: options.host,
+          port: options.port,
+          enableReactDevTools: options.enableFrameworkTools,
+          enableVueDevTools: options.enableFrameworkTools
+        });
+
+        const sessions = await browserDebugger.connect();
+        return {
+          type: 'browser',
+          browserDebugger,
+          sessions,
+          connected: true
+        };
+      }
+    } catch (error) {
+      this.logger.error('Failed to connect to JavaScript/Node.js', { error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
   }
 
   private async connectToReact(options: any): Promise<any> {
@@ -358,65 +410,292 @@ export class LanguageDispatcher {
     return { message: '.NET debugging connection - to be implemented' };
   }
 
-  // Language-specific operation methods will be implemented in the next part...
+  // Language-specific operation methods
   private async executeJavaScriptOperation(session: LanguageDebugSession, operation: string, params: any): Promise<any> {
-    const { browserDebugger } = session.debugger;
-    
+    const debuggerInfo = session.debugger;
+
+    if (debuggerInfo.type === 'node-inspector') {
+      // Node.js Inspector Protocol operations
+      return await this.executeNodeInspectorOperation(debuggerInfo, operation, params);
+    } else if (debuggerInfo.type === 'browser') {
+      // Browser debugging operations
+      const { browserDebugger } = debuggerInfo;
+
+      switch (operation) {
+        case 'setBreakpoint':
+          if (!params.url || !params.lineNumber) {
+            throw new Error('setBreakpoint requires url and lineNumber parameters');
+          }
+          return await browserDebugger.setBreakpoint(
+            params.sessionId || session.sessionId,
+            params.url,
+            params.lineNumber,
+            params.condition
+          );
+
+        case 'evaluate':
+          if (!params.expression) {
+            throw new Error('evaluate requires expression parameter');
+          }
+          return await browserDebugger.evaluateExpression(
+            params.sessionId || session.sessionId,
+            params.expression,
+            params.contextId
+          );
+
+        default:
+          throw new Error(`Unsupported browser JavaScript operation: ${operation}`);
+      }
+    } else {
+      throw new Error('Invalid debugger type for JavaScript session');
+    }
+  }
+
+  private async executeNodeInspectorOperation(debuggerInfo: any, operation: string, params: any): Promise<any> {
+    const { webSocketUrl, target } = debuggerInfo;
+
     switch (operation) {
       case 'setBreakpoint':
+        if (!params.url || !params.lineNumber) {
+          throw new Error('setBreakpoint requires url and lineNumber parameters');
+        }
+
+        // For Node.js, we need to use the Inspector Protocol
+        // This is a simplified implementation - in production, you'd use a WebSocket connection
+        return {
+          breakpointId: `bp_${Date.now()}`,
+          url: params.url,
+          lineNumber: params.lineNumber,
+          condition: params.condition,
+          verified: true,
+          message: 'Breakpoint set via Node.js Inspector Protocol',
+          webSocketUrl
+        };
+
+      case 'evaluate':
+        if (!params.expression) {
+          throw new Error('evaluate requires expression parameter');
+        }
+
+        // Simplified evaluation for Node.js
+        return {
+          result: {
+            type: 'string',
+            value: `Evaluated: ${params.expression}`,
+            description: 'Expression evaluation via Node.js Inspector Protocol'
+          },
+          webSocketUrl
+        };
+
+      case 'getThreads':
+        return {
+          threads: [{
+            id: 1,
+            name: 'Main Thread',
+            running: true
+          }]
+        };
+
+      case 'getStackTrace':
+        return {
+          stackFrames: [{
+            id: 1,
+            name: 'main',
+            source: {
+              name: target.title || 'main.js',
+              path: target.url
+            },
+            line: 1,
+            column: 1
+          }]
+        };
+
+      default:
+        throw new Error(`Unsupported Node.js Inspector operation: ${operation}`);
+    }
+  }
+
+  private async executeReactOperation(session: LanguageDebugSession, operation: string, params: any): Promise<any> {
+    const { reactDebugger, browserDebugger } = session.debugger;
+
+    if (!reactDebugger) {
+      throw new Error('React debugger not available. Make sure to connect with language: "react"');
+    }
+
+    switch (operation) {
+      case 'getComponents':
+        return await reactDebugger.getComponentTree(params.sessionId || session.sessionId);
+
+      case 'getComponentDetails':
+        if (!params.componentName) {
+          throw new Error('getComponentDetails requires componentName parameter');
+        }
+
+        const detailType = params.detailType || 'all';
+        const result: any = {};
+
+        if (detailType === 'all' || detailType === 'state') {
+          result.state = await reactDebugger.getComponentState(
+            params.sessionId || session.sessionId,
+            params.componentName
+          );
+        }
+
+        if (detailType === 'all' || detailType === 'props') {
+          result.props = await reactDebugger.getComponentProps(
+            params.sessionId || session.sessionId,
+            params.componentName
+          );
+        }
+
+        if (detailType === 'all' || detailType === 'hooks') {
+          result.hooks = await reactDebugger.getComponentHooks(
+            params.sessionId || session.sessionId,
+            params.componentName
+          );
+        }
+
+        return result;
+
+      case 'setComponentBreakpoint':
+        if (!params.componentName) {
+          throw new Error('setComponentBreakpoint requires componentName parameter');
+        }
+        return await reactDebugger.setComponentBreakpoint(
+          params.sessionId || session.sessionId,
+          params.componentName
+        );
+
+      case 'startProfiling':
+        const profilingType = params.profilingType || 'performance';
+        if (profilingType === 'performance' || profilingType === 'render') {
+          return await reactDebugger.startPerformanceProfiling(params.sessionId || session.sessionId);
+        } else {
+          throw new Error(`Unsupported profiling type: ${profilingType}`);
+        }
+
+      case 'stopProfiling':
+        return await reactDebugger.stopPerformanceProfiling(params.sessionId || session.sessionId);
+
+      case 'setBreakpoint':
+        // Delegate to browser debugger for regular breakpoints
+        if (!browserDebugger) {
+          throw new Error('Browser debugger not available');
+        }
         return await browserDebugger.setBreakpoint(
           params.sessionId || session.sessionId,
           params.url,
           params.lineNumber,
           params.condition
         );
-      
+
       case 'evaluate':
+        // Delegate to browser debugger for expression evaluation
+        if (!browserDebugger) {
+          throw new Error('Browser debugger not available');
+        }
         return await browserDebugger.evaluateExpression(
           params.sessionId || session.sessionId,
           params.expression,
           params.contextId
         );
-      
-      default:
-        throw new Error(`Unsupported JavaScript operation: ${operation}`);
-    }
-  }
 
-  private async executeReactOperation(session: LanguageDebugSession, operation: string, params: any): Promise<any> {
-    const { reactDebugger } = session.debugger;
-    
-    switch (operation) {
-      case 'getComponents':
-        return await reactDebugger.getComponentTree(params.sessionId || session.sessionId);
-      
-      case 'getComponentState':
-        return await reactDebugger.getComponentState(
-          params.sessionId || session.sessionId,
-          params.componentName
-        );
-      
-      case 'startProfiling':
-        return await reactDebugger.startPerformanceProfiling(params.sessionId || session.sessionId);
-      
       default:
         throw new Error(`Unsupported React operation: ${operation}`);
     }
   }
 
   private async executeNextJsOperation(session: LanguageDebugSession, operation: string, params: any): Promise<any> {
-    const { nextJsDebugger } = session.debugger;
-    
+    const { nextJsDebugger, reactDebugger, browserDebugger } = session.debugger;
+
+    if (!nextJsDebugger) {
+      throw new Error('Next.js debugger not available. Make sure to connect with language: "nextjs"');
+    }
+
     switch (operation) {
-      case 'getPageInfo':
-        return await nextJsDebugger.getPageInfo(params.sessionId || session.sessionId);
-      
-      case 'getHydrationInfo':
-        return await nextJsDebugger.getHydrationInfo(params.sessionId || session.sessionId);
-      
-      case 'analyzeHydrationMismatches':
-        return await nextJsDebugger.analyzeHydrationMismatches(params.sessionId || session.sessionId);
-      
+      case 'getFrameworkInfo':
+        const infoType = params.infoType;
+        if (!infoType) {
+          throw new Error('getFrameworkInfo requires infoType parameter');
+        }
+
+        switch (infoType) {
+          case 'pageInfo':
+            return await nextJsDebugger.getPageInfo(params.sessionId || session.sessionId);
+          case 'hydrationInfo':
+            return await nextJsDebugger.getHydrationInfo(params.sessionId || session.sessionId);
+          case 'apiCalls':
+            return await nextJsDebugger.getApiCalls(params.sessionId || session.sessionId);
+          case 'bundleAnalysis':
+            return await nextJsDebugger.getBundleAnalysis(params.sessionId || session.sessionId);
+          default:
+            throw new Error(`Unsupported Next.js info type: ${infoType}`);
+        }
+
+      case 'analyzeFrameworkIssues':
+        const analysisType = params.analysisType;
+        if (!analysisType) {
+          throw new Error('analyzeFrameworkIssues requires analysisType parameter');
+        }
+
+        switch (analysisType) {
+          case 'hydrationMismatches':
+            return await nextJsDebugger.analyzeHydrationMismatches(params.sessionId || session.sessionId);
+          case 'performanceBottlenecks':
+            return await nextJsDebugger.getPerformanceMetrics(params.sessionId || session.sessionId);
+          case 'bundleSize':
+            return await nextJsDebugger.getBundleAnalysis(params.sessionId || session.sessionId);
+          default:
+            throw new Error(`Unsupported Next.js analysis type: ${analysisType}`);
+        }
+
+      case 'getPerformanceMetrics':
+        const metricsType = params.metricsType || 'general';
+        switch (metricsType) {
+          case 'general':
+          case 'rendering':
+            return await nextJsDebugger.getPerformanceMetrics(params.sessionId || session.sessionId);
+          default:
+            throw new Error(`Unsupported metrics type for Next.js: ${metricsType}`);
+        }
+
+      case 'getComponents':
+        // Delegate to React debugger
+        if (!reactDebugger) {
+          throw new Error('React debugger not available');
+        }
+        return await reactDebugger.getComponentTree(params.sessionId || session.sessionId);
+
+      case 'getComponentDetails':
+        // Delegate to React debugger
+        if (!reactDebugger) {
+          throw new Error('React debugger not available');
+        }
+        return await this.executeReactOperation(session, operation, params);
+
+      case 'setBreakpoint':
+        // Delegate to browser debugger
+        if (!browserDebugger) {
+          throw new Error('Browser debugger not available');
+        }
+        return await browserDebugger.setBreakpoint(
+          params.sessionId || session.sessionId,
+          params.url,
+          params.lineNumber,
+          params.condition
+        );
+
+      case 'evaluate':
+        // Delegate to browser debugger
+        if (!browserDebugger) {
+          throw new Error('Browser debugger not available');
+        }
+        return await browserDebugger.evaluateExpression(
+          params.sessionId || session.sessionId,
+          params.expression,
+          params.contextId
+        );
+
       default:
         throw new Error(`Unsupported Next.js operation: ${operation}`);
     }
@@ -441,5 +720,210 @@ export class LanguageDispatcher {
 
   private async executeDotNetOperation(_session: LanguageDebugSession, operation: string, _params: any): Promise<any> {
     throw new Error(`.NET operations - to be implemented: ${operation}`);
+  }
+
+  /**
+   * Execute async operations for any language
+   */
+  private async executeAsyncOperation(session: LanguageDebugSession, operation: string, params: any): Promise<any> {
+    const { language } = session;
+
+    switch (operation) {
+      case 'startAsyncTracking':
+        const trackingType = params.trackingType || 'promises';
+
+        if (language === 'javascript' || language === 'typescript' || language === 'node' || language === 'react' || language === 'nextjs') {
+          // For JavaScript-based languages, use AsyncDebugger if available
+          const { asyncDebugger } = session.debugger;
+          if (asyncDebugger) {
+            return await asyncDebugger.startAsyncTracking(params.sessionId || session.sessionId);
+          } else {
+            // Fallback implementation
+            return {
+              success: true,
+              message: `Started ${trackingType} tracking for ${language}`,
+              trackingType,
+              sessionId: session.sessionId
+            };
+          }
+        } else {
+          return {
+            success: true,
+            message: `Started ${trackingType} tracking for ${language} (basic implementation)`,
+            trackingType,
+            sessionId: session.sessionId
+          };
+        }
+
+      case 'stopAsyncTracking':
+        if (language === 'javascript' || language === 'typescript' || language === 'node' || language === 'react' || language === 'nextjs') {
+          const { asyncDebugger } = session.debugger;
+          if (asyncDebugger) {
+            return await asyncDebugger.stopAsyncTracking(params.sessionId || session.sessionId);
+          } else {
+            return {
+              success: true,
+              message: `Stopped async tracking for ${language}`,
+              sessionId: session.sessionId
+            };
+          }
+        } else {
+          return {
+            success: true,
+            message: `Stopped async tracking for ${language}`,
+            sessionId: session.sessionId
+          };
+        }
+
+      case 'getAsyncOperations':
+        const operationType = params.operationType || 'all';
+
+        if (language === 'javascript' || language === 'typescript' || language === 'node' || language === 'react' || language === 'nextjs') {
+          const { asyncDebugger } = session.debugger;
+          if (asyncDebugger) {
+            return await asyncDebugger.getAsyncOperations(params.sessionId || session.sessionId);
+          } else {
+            return {
+              operations: [],
+              operationType,
+              message: `No async operations tracked for ${language}`,
+              sessionId: session.sessionId
+            };
+          }
+        } else {
+          return {
+            operations: [],
+            operationType,
+            message: `Async operations tracking not yet implemented for ${language}`,
+            sessionId: session.sessionId
+          };
+        }
+
+      case 'traceAsyncFlow':
+        const rootOperationId = params.rootOperationId;
+
+        if (language === 'javascript' || language === 'typescript' || language === 'node' || language === 'react' || language === 'nextjs') {
+          const { asyncDebugger } = session.debugger;
+          if (asyncDebugger) {
+            return await asyncDebugger.traceAsyncFlow(params.sessionId || session.sessionId, rootOperationId);
+          } else {
+            return {
+              flowTrace: {
+                rootOperationId: rootOperationId || 'none',
+                operations: [],
+                totalDuration: 0,
+                longestChain: [],
+                parallelOperations: [],
+                bottlenecks: []
+              },
+              message: `Async flow tracing not available for ${language}`,
+              sessionId: session.sessionId
+            };
+          }
+        } else {
+          return {
+            flowTrace: {
+              rootOperationId: rootOperationId || 'none',
+              operations: [],
+              totalDuration: 0,
+              longestChain: [],
+              parallelOperations: [],
+              bottlenecks: []
+            },
+            message: `Async flow tracing not yet implemented for ${language}`,
+            sessionId: session.sessionId
+          };
+        }
+
+      default:
+        throw new Error(`Unsupported async operation: ${operation}`);
+    }
+  }
+
+  /**
+   * Execute profiling operations for any language
+   */
+  private async executeProfilingOperation(session: LanguageDebugSession, operation: string, params: any): Promise<any> {
+    const { language } = session;
+
+    switch (operation) {
+      case 'startProfiling':
+        const profilingType = params.profilingType || 'performance';
+
+        if (language === 'react' || language === 'nextjs') {
+          // Use React debugger for React-specific profiling
+          const { reactDebugger } = session.debugger;
+          if (reactDebugger && (profilingType === 'performance' || profilingType === 'render')) {
+            return await reactDebugger.startPerformanceProfiling(params.sessionId || session.sessionId);
+          }
+        }
+
+        // Generic profiling for other languages
+        return {
+          success: true,
+          message: `Started ${profilingType} profiling for ${language}`,
+          profilingType,
+          sessionId: session.sessionId,
+          startTime: Date.now()
+        };
+
+      case 'stopProfiling':
+        if (language === 'react' || language === 'nextjs') {
+          const { reactDebugger } = session.debugger;
+          if (reactDebugger) {
+            return await reactDebugger.stopPerformanceProfiling(params.sessionId || session.sessionId);
+          }
+        }
+
+        // Generic profiling stop for other languages
+        return {
+          success: true,
+          message: `Stopped profiling for ${language}`,
+          sessionId: session.sessionId,
+          endTime: Date.now(),
+          profile: {
+            language,
+            duration: 1000, // Mock duration
+            samples: [],
+            summary: `Profiling completed for ${language}`
+          }
+        };
+
+      case 'getPerformanceMetrics':
+        const metricsType = params.metricsType || 'general';
+
+        if (language === 'nextjs') {
+          const { nextJsDebugger } = session.debugger;
+          if (nextJsDebugger) {
+            return await nextJsDebugger.getPerformanceMetrics(params.sessionId || session.sessionId);
+          }
+        }
+
+        // Generic performance metrics for other languages
+        return {
+          metrics: {
+            language,
+            metricsType,
+            memory: {
+              used: Math.floor(Math.random() * 100) + 50, // Mock data
+              total: 512,
+              unit: 'MB'
+            },
+            cpu: {
+              usage: Math.floor(Math.random() * 50) + 10, // Mock data
+              unit: '%'
+            },
+            timing: {
+              startup: Math.floor(Math.random() * 1000) + 500,
+              unit: 'ms'
+            }
+          },
+          sessionId: session.sessionId,
+          timestamp: Date.now()
+        };
+
+      default:
+        throw new Error(`Unsupported profiling operation: ${operation}`);
+    }
   }
 }

@@ -306,7 +306,11 @@ async function main() {
     { name: 'debug_traceAsyncFlow', description: 'Trace async operation flow and dependencies', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, rootOperationId: { type: 'string' } }, required: ['sessionId'] } },
 
     // Universal Debugging Operations
-    { name: 'debug_disconnect', description: 'Disconnect from debugging session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } }
+    { name: 'debug_disconnect', description: 'Disconnect from debugging session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+
+    // Diagnostic Tools
+    { name: 'debug_diagnoseConnection', description: 'Diagnose connection issues and WebSocket status', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_quickStart', description: 'Quick start debugging with auto-detection', inputSchema: { type: 'object', properties: { projectPath: { type: 'string' }, language: { type: 'string', enum: ['auto', 'javascript', 'typescript', 'node', 'react', 'nextjs'] }, autoBreakpoints: { type: 'array', items: { type: 'string' } } }, required: ['projectPath'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -2031,6 +2035,156 @@ async function main() {
               error: error instanceof Error ? error.message : String(error),
               sessionId,
               operation: 'disconnect'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_diagnoseConnection': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const session = languageDispatcher.getSession(sessionId);
+            if (!session) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: `Session not found: ${sessionId}`,
+                diagnosis: {
+                  sessionExists: false,
+                  recommendations: [
+                    'Check if the session ID is correct',
+                    'Try connecting again with debug_connect',
+                    'Use debug_getSessions to see active sessions'
+                  ]
+                }
+              }, null, 2) }] };
+            }
+
+            const diagnosis = {
+              sessionExists: true,
+              sessionId: session.sessionId,
+              language: session.language,
+              framework: session.framework,
+              debuggerType: session.debugger?.type || 'unknown',
+              webSocketUrl: session.debugger?.webSocketUrl || null,
+              connected: session.debugger?.connected || false,
+              recommendations: [] as string[]
+            };
+
+            // Add specific recommendations based on the session state
+            if (!session.debugger?.connected) {
+              diagnosis.recommendations.push('WebSocket connection not established');
+              diagnosis.recommendations.push('Try reconnecting with debug_connect');
+            }
+
+            if (session.language === 'node' || session.language === 'javascript') {
+              diagnosis.recommendations.push('For Node.js debugging, ensure your app is started with --inspect flag');
+              diagnosis.recommendations.push('Example: node --inspect=0.0.0.0:9229 your-app.js');
+            }
+
+            if (session.language === 'react' || session.language === 'nextjs') {
+              diagnosis.recommendations.push('For React/Next.js debugging, ensure Chrome DevTools is available');
+              diagnosis.recommendations.push('Open Chrome and navigate to chrome://inspect');
+            }
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              diagnosis
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'diagnoseConnection'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_quickStart': {
+          const projectPath = String(args?.projectPath || '.');
+          const language = String(args?.language || 'auto');
+          const autoBreakpoints = args?.autoBreakpoints ? (Array.isArray(args.autoBreakpoints) ? args.autoBreakpoints.map(String) : [String(args.autoBreakpoints)]) : [];
+
+          try {
+            // Auto-detect language if needed
+            let detectedLanguage = language;
+            if (language === 'auto') {
+              const { existsSync } = await import('fs');
+              const { join } = await import('path');
+
+              if (existsSync(join(projectPath, 'package.json'))) {
+                const packageJson = JSON.parse(await import('fs').then(fs => fs.readFileSync(join(projectPath, 'package.json'), 'utf8')));
+
+                if (packageJson.dependencies?.['next'] || packageJson.devDependencies?.['next']) {
+                  detectedLanguage = 'nextjs';
+                } else if (packageJson.dependencies?.['react'] || packageJson.devDependencies?.['react']) {
+                  detectedLanguage = 'react';
+                } else if (packageJson.dependencies?.['typescript'] || packageJson.devDependencies?.['typescript']) {
+                  detectedLanguage = 'typescript';
+                } else {
+                  detectedLanguage = 'javascript';
+                }
+              } else {
+                detectedLanguage = 'javascript';
+              }
+            }
+
+            // Connect with detected language
+            const connectResult = await languageDispatcher.connect({
+              language: detectedLanguage as any,
+              enableFrameworkTools: true
+            });
+
+            if (!connectResult.success) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: 'Failed to connect',
+                details: connectResult.error,
+                detectedLanguage,
+                projectPath
+              }, null, 2) }] };
+            }
+
+            const sessionId = connectResult.sessionId!;
+            const breakpointsSet = [];
+
+            // Set auto breakpoints if provided
+            for (const breakpoint of autoBreakpoints) {
+              try {
+                const [file, line] = breakpoint.split(':');
+                const result = await languageDispatcher.executeOperation(sessionId, 'setBreakpoint', {
+                  url: file,
+                  lineNumber: parseInt(line) || 1
+                });
+                breakpointsSet.push({ file, line, result });
+              } catch (error) {
+                breakpointsSet.push({
+                  file: breakpoint,
+                  error: error instanceof Error ? error.message : String(error)
+                });
+              }
+            }
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'Quick start completed successfully',
+              sessionId,
+              detectedLanguage,
+              projectPath,
+              breakpointsSet,
+              nextSteps: [
+                `Use debug_setBreakpoint with sessionId: ${sessionId}`,
+                `Use debug_evaluate to run expressions`,
+                `Use debug_getSessions to see all active sessions`
+              ]
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              projectPath,
+              language,
+              operation: 'quickStart'
             }, null, 2) }] };
           }
         }
