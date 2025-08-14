@@ -9,6 +9,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface LanguageProgress {
   tier: number;
@@ -75,17 +79,17 @@ class LanguageReportGenerator {
 ## 🏆 Language Tiers
 
 ### Tier 1: Production Ready (${summary.tier_1_languages.length} languages)
-${summary.tier_1_languages.map((lang: string) => 
+${summary.tier_1_languages.filter((lang: string) => languages[lang]).map((lang: string) =>
   `- **${this.getLanguageDisplayName(lang)}**: ${languages[lang].overall_score}/10 (${languages[lang].success_rate}% success rate)`
 ).join('\n')}
 
 ### Tier 2: Functional with Gaps (${summary.tier_2_languages.length} languages)
-${summary.tier_2_languages.map((lang: string) => 
+${summary.tier_2_languages.filter((lang: string) => languages[lang]).map((lang: string) =>
   `- **${this.getLanguageDisplayName(lang)}**: ${languages[lang].overall_score}/10 (${languages[lang].success_rate}% success rate)`
 ).join('\n')}
 
 ### Tier 3: Basic Implementation (${summary.tier_3_languages.length} languages)
-${summary.tier_3_languages.map((lang: string) => 
+${summary.tier_3_languages.filter((lang: string) => languages[lang]).map((lang: string) =>
   `- **${this.getLanguageDisplayName(lang)}**: ${languages[lang].overall_score}/10 (${languages[lang].success_rate}% success rate)`
 ).join('\n')}
 
@@ -228,7 +232,7 @@ ${this.generateImprovementOpportunities()}
     return '🟩'.repeat(filled) + '⬜'.repeat(empty);
   }
 
-  private getNextMilestone(langKey: string, langData: LanguageProgress): string {
+  private getNextMilestone(_langKey: string, langData: LanguageProgress): string {
     const roadmap = langData.roadmap;
     const nextQuarter = Object.keys(roadmap)[0];
     const nextItems = roadmap[nextQuarter];
@@ -237,7 +241,7 @@ ${this.generateImprovementOpportunities()}
 
   private generateImprovementOpportunities(): string {
     const languages = this.progressData.languages;
-    const opportunities = [];
+    const opportunities: string[] = [];
 
     // Find languages with low scores
     Object.entries(languages).forEach(([langKey, langData]) => {
@@ -288,11 +292,13 @@ ${this.generateImprovementOpportunities()}
 }
 
 // CLI execution
-if (require.main === module) {
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMainModule) {
   const generator = new LanguageReportGenerator();
-  
+
   const command = process.argv[2];
-  
+
   switch (command) {
     case 'summary':
       generator.generateExecutiveSummary();

@@ -24,6 +24,10 @@ import { ConnectionManager } from './java/connection-manager.js';
 import { InteractiveTroubleshooter } from './java/interactive-troubleshooter.js';
 import type { HybridDebugConfig } from './java/hybrid-debugger.js';
 import type { DebugError, RecoveryContext } from './java/error-recovery.js';
+import { BrowserDebugger } from './typescript/browser-debugger.js';
+import { ReactDebugger } from './typescript/react-debugger.js';
+import { NextJsDebugger } from './typescript/nextjs-debugger.js';
+import { AsyncDebugger } from './typescript/async-debugger.js';
 
 
 // Do not log to stdout/stderr in stdio mode; MCP expects only JSON-RPC
@@ -173,6 +177,12 @@ async function main() {
   const enhanced = new EnhancedDebugTools(logger as any);
   const errorStats = { totalErrors: 0 };
 
+  // TypeScript/JavaScript debugging instances
+  let browserDebugger: BrowserDebugger | null = null;
+  let reactDebugger: ReactDebugger | null = null;
+  let nextJsDebugger: NextJsDebugger | null = null;
+  let asyncDebugger: AsyncDebugger | null = null;
+
   // Diagnostics helpers
   const adapters = {
     node: { cmd: 'node', args: ['--version'], prerequisite: 'node (>=16)', install: 'https://nodejs.org' },
@@ -275,7 +285,42 @@ async function main() {
     { name: 'debug_startPortMonitoring', description: 'Start continuous port monitoring', inputSchema: { type: 'object', properties: { intervalMs: { type: 'number' } } } },
     { name: 'debug_stopPortMonitoring', description: 'Stop port monitoring', inputSchema: { type: 'object', properties: {} } },
     { name: 'debug_validateJDWPConnectionEnhanced', description: 'Enhanced JDWP validation with agent detection and conflict analysis', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, timeout: { type: 'number' }, retryAttempts: { type: 'number' } }, required: ['port'] } },
-    { name: 'debug_verifyPortStatus', description: 'Verify actual port status with comprehensive system-level checks', inputSchema: { type: 'object', properties: { port: { type: 'number' }, includeProcessDetails: { type: 'boolean' } }, required: ['port'] } }
+    { name: 'debug_verifyPortStatus', description: 'Verify actual port status with comprehensive system-level checks', inputSchema: { type: 'object', properties: { port: { type: 'number' }, includeProcessDetails: { type: 'boolean' } }, required: ['port'] } },
+
+    // TypeScript/JavaScript Enhanced Debugging Tools
+    { name: 'debug_connectBrowser', description: 'Connect to Chrome DevTools for browser debugging', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, enableReactDevTools: { type: 'boolean' }, enableVueDevTools: { type: 'boolean' } } } },
+    { name: 'debug_getBrowserSessions', description: 'Get all active browser debugging sessions', inputSchema: { type: 'object', properties: {} } },
+    { name: 'debug_setBreakpointInBrowser', description: 'Set breakpoint in browser JavaScript code', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, url: { type: 'string' }, lineNumber: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'url', 'lineNumber'] } },
+    { name: 'debug_evaluateInBrowser', description: 'Evaluate JavaScript expression in browser context', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, contextId: { type: 'number' } }, required: ['sessionId', 'expression'] } },
+
+    // React Debugging Tools
+    { name: 'debug_initializeReactDebugging', description: 'Initialize React component debugging for a browser session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getReactComponents', description: 'Get React component tree with state and props', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_setComponentBreakpoint', description: 'Set breakpoint on React component render', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, componentName: { type: 'string' } }, required: ['sessionId', 'componentName'] } },
+    { name: 'debug_getComponentState', description: 'Get React component state', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, componentName: { type: 'string' } }, required: ['sessionId', 'componentName'] } },
+    { name: 'debug_getComponentProps', description: 'Get React component props', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, componentName: { type: 'string' } }, required: ['sessionId', 'componentName'] } },
+    { name: 'debug_getComponentHooks', description: 'Get React component hooks information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, componentName: { type: 'string' } }, required: ['sessionId', 'componentName'] } },
+    { name: 'debug_startReactProfiling', description: 'Start React performance profiling', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_stopReactProfiling', description: 'Stop React performance profiling and get results', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+
+    // Next.js Debugging Tools
+    { name: 'debug_initializeNextJsDebugging', description: 'Initialize Next.js framework debugging', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getNextJsPageInfo', description: 'Get Next.js page information (SSR/SSG/ISR)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getHydrationInfo', description: 'Get Next.js hydration information and errors', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getNextJsApiCalls', description: 'Get Next.js API call history', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getNextJsPerformanceMetrics', description: 'Get Next.js performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_debugSSRProps', description: 'Debug Next.js server-side rendering props', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_analyzeHydrationMismatches', description: 'Analyze Next.js hydration mismatches', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getBundleAnalysis', description: 'Get Next.js bundle analysis', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+
+    // Enhanced Async Debugging Tools
+    { name: 'debug_initializeAsyncDebugging', description: 'Initialize enhanced async/await debugging', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_startAsyncTracking', description: 'Start tracking async operations', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_stopAsyncTracking', description: 'Stop tracking async operations', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getAsyncOperations', description: 'Get all tracked async operations', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getAsyncPerformanceMetrics', description: 'Get async performance metrics and recommendations', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_traceAsyncFlow', description: 'Trace async operation flow and dependencies', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, rootOperationId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_clearAsyncOperations', description: 'Clear all tracked async operations', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -1590,6 +1635,557 @@ async function main() {
                 `📋 Command: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=${port} YourApp`
               ]
             }, null, 2) }] };
+          }
+        }
+
+        // TypeScript/JavaScript Browser Debugging
+        case 'debug_connectBrowser': {
+          const host = String(args?.host || 'localhost');
+          const port = Number(args?.port || 9222);
+          const enableReactDevTools = Boolean(args?.enableReactDevTools !== false);
+          const enableVueDevTools = Boolean(args?.enableVueDevTools !== false);
+
+          try {
+            browserDebugger = new BrowserDebugger({
+              host,
+              port,
+              enableReactDevTools,
+              enableVueDevTools
+            });
+
+            const sessions = await browserDebugger.connect();
+
+            // Initialize React and Next.js debuggers if React is detected
+            if (enableReactDevTools) {
+              reactDebugger = new ReactDebugger(browserDebugger);
+              nextJsDebugger = new NextJsDebugger(browserDebugger, reactDebugger);
+            }
+
+            // Initialize async debugger
+            asyncDebugger = new AsyncDebugger(browserDebugger);
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              connected: true,
+              sessions: sessions.map(s => ({
+                sessionId: s.sessionId,
+                url: s.url,
+                title: s.title,
+                reactDetected: s.reactDetected,
+                vueDetected: s.vueDetected,
+                nextJsDetected: s.nextJsDetected
+              }))
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to connect to browser: ${error}` }] };
+          }
+        }
+
+        case 'debug_getBrowserSessions': {
+          try {
+            if (!browserDebugger) {
+              return { content: [{ type: 'text', text: 'Browser debugger not connected. Use debug_connectBrowser first.' }] };
+            }
+
+            const sessions = browserDebugger.getSessions();
+            return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get browser sessions: ${error}` }] };
+          }
+        }
+
+        case 'debug_setBreakpointInBrowser': {
+          const sessionId = String(args?.sessionId);
+          const url = String(args?.url);
+          const lineNumber = Number(args?.lineNumber);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            if (!browserDebugger) {
+              return { content: [{ type: 'text', text: 'Browser debugger not connected. Use debug_connectBrowser first.' }] };
+            }
+
+            const breakpointId = await browserDebugger.setBreakpoint(sessionId, url, lineNumber, condition);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              breakpointId,
+              sessionId,
+              url,
+              lineNumber,
+              condition
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to set breakpoint: ${error}` }] };
+          }
+        }
+
+        case 'debug_evaluateInBrowser': {
+          const sessionId = String(args?.sessionId);
+          const expression = String(args?.expression);
+          const contextId = args?.contextId ? Number(args.contextId) : undefined;
+
+          try {
+            if (!browserDebugger) {
+              return { content: [{ type: 'text', text: 'Browser debugger not connected. Use debug_connectBrowser first.' }] };
+            }
+
+            const result = await browserDebugger.evaluateExpression(sessionId, expression, contextId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              result,
+              expression,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to evaluate expression: ${error}` }] };
+          }
+        }
+
+        // React Debugging
+        case 'debug_initializeReactDebugging': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available. Connect to browser with React DevTools enabled first.' }] };
+            }
+
+            await reactDebugger.initializeReactDebugging(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'React debugging initialized',
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to initialize React debugging: ${error}` }] };
+          }
+        }
+
+        case 'debug_getReactComponents': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available.' }] };
+            }
+
+            const components = await reactDebugger.getComponentTree(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              components,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get React components: ${error}` }] };
+          }
+        }
+
+        case 'debug_setComponentBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const componentName = String(args?.componentName);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available.' }] };
+            }
+
+            await reactDebugger.setComponentBreakpoint(sessionId, componentName);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: `Component breakpoint set on ${componentName}`,
+              sessionId,
+              componentName
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to set component breakpoint: ${error}` }] };
+          }
+        }
+
+        case 'debug_getComponentState': {
+          const sessionId = String(args?.sessionId);
+          const componentName = String(args?.componentName);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available.' }] };
+            }
+
+            const state = await reactDebugger.getComponentState(sessionId, componentName);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              state,
+              componentName,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get component state: ${error}` }] };
+          }
+        }
+
+        case 'debug_getComponentProps': {
+          const sessionId = String(args?.sessionId);
+          const componentName = String(args?.componentName);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available.' }] };
+            }
+
+            const props = await reactDebugger.getComponentProps(sessionId, componentName);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              props,
+              componentName,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get component props: ${error}` }] };
+          }
+        }
+
+        case 'debug_getComponentHooks': {
+          const sessionId = String(args?.sessionId);
+          const componentName = String(args?.componentName);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available.' }] };
+            }
+
+            const hooks = await reactDebugger.getComponentHooks(sessionId, componentName);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              hooks,
+              componentName,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get component hooks: ${error}` }] };
+          }
+        }
+
+        case 'debug_startReactProfiling': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available.' }] };
+            }
+
+            await reactDebugger.startPerformanceProfiling(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'React performance profiling started',
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to start React profiling: ${error}` }] };
+          }
+        }
+
+        case 'debug_stopReactProfiling': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!reactDebugger) {
+              return { content: [{ type: 'text', text: 'React debugger not available.' }] };
+            }
+
+            const profile = await reactDebugger.stopPerformanceProfiling(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              profile,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to stop React profiling: ${error}` }] };
+          }
+        }
+
+        // Next.js Debugging
+        case 'debug_initializeNextJsDebugging': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available. Connect to browser with React DevTools enabled first.' }] };
+            }
+
+            await nextJsDebugger.initializeNextJsDebugging(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'Next.js debugging initialized',
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to initialize Next.js debugging: ${error}` }] };
+          }
+        }
+
+        case 'debug_getNextJsPageInfo': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available.' }] };
+            }
+
+            const pageInfo = await nextJsDebugger.getPageInfo(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              pageInfo,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get Next.js page info: ${error}` }] };
+          }
+        }
+
+        case 'debug_getHydrationInfo': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available.' }] };
+            }
+
+            const hydrationInfo = await nextJsDebugger.getHydrationInfo(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              hydrationInfo,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get hydration info: ${error}` }] };
+          }
+        }
+
+        case 'debug_getNextJsApiCalls': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available.' }] };
+            }
+
+            const apiCalls = await nextJsDebugger.getApiCalls(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              apiCalls,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get API calls: ${error}` }] };
+          }
+        }
+
+        case 'debug_getNextJsPerformanceMetrics': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available.' }] };
+            }
+
+            const metrics = await nextJsDebugger.getPerformanceMetrics(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              metrics,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get performance metrics: ${error}` }] };
+          }
+        }
+
+        case 'debug_debugSSRProps': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available.' }] };
+            }
+
+            const ssrProps = await nextJsDebugger.debugSSRProps(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              ssrProps,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to debug SSR props: ${error}` }] };
+          }
+        }
+
+        case 'debug_analyzeHydrationMismatches': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available.' }] };
+            }
+
+            const mismatches = await nextJsDebugger.analyzeHydrationMismatches(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              mismatches,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to analyze hydration mismatches: ${error}` }] };
+          }
+        }
+
+        case 'debug_getBundleAnalysis': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!nextJsDebugger) {
+              return { content: [{ type: 'text', text: 'Next.js debugger not available.' }] };
+            }
+
+            const analysis = await nextJsDebugger.getBundleAnalysis(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              analysis,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get bundle analysis: ${error}` }] };
+          }
+        }
+
+        // Enhanced Async Debugging
+        case 'debug_initializeAsyncDebugging': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!asyncDebugger) {
+              return { content: [{ type: 'text', text: 'Async debugger not available. Connect to browser first.' }] };
+            }
+
+            await asyncDebugger.initializeAsyncDebugging(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'Async debugging initialized',
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to initialize async debugging: ${error}` }] };
+          }
+        }
+
+        case 'debug_startAsyncTracking': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!asyncDebugger) {
+              return { content: [{ type: 'text', text: 'Async debugger not available.' }] };
+            }
+
+            await asyncDebugger.startAsyncTracking(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'Async tracking started',
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to start async tracking: ${error}` }] };
+          }
+        }
+
+        case 'debug_stopAsyncTracking': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!asyncDebugger) {
+              return { content: [{ type: 'text', text: 'Async debugger not available.' }] };
+            }
+
+            await asyncDebugger.stopAsyncTracking(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'Async tracking stopped',
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to stop async tracking: ${error}` }] };
+          }
+        }
+
+        case 'debug_getAsyncOperations': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!asyncDebugger) {
+              return { content: [{ type: 'text', text: 'Async debugger not available.' }] };
+            }
+
+            const operations = await asyncDebugger.getAsyncOperations(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              operations,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get async operations: ${error}` }] };
+          }
+        }
+
+        case 'debug_getAsyncPerformanceMetrics': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!asyncDebugger) {
+              return { content: [{ type: 'text', text: 'Async debugger not available.' }] };
+            }
+
+            const metrics = await asyncDebugger.getAsyncPerformanceMetrics(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              metrics,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to get async performance metrics: ${error}` }] };
+          }
+        }
+
+        case 'debug_traceAsyncFlow': {
+          const sessionId = String(args?.sessionId);
+          const rootOperationId = args?.rootOperationId ? String(args.rootOperationId) : undefined;
+
+          try {
+            if (!asyncDebugger) {
+              return { content: [{ type: 'text', text: 'Async debugger not available.' }] };
+            }
+
+            const flowTrace = await asyncDebugger.traceAsyncFlow(sessionId, rootOperationId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              flowTrace,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to trace async flow: ${error}` }] };
+          }
+        }
+
+        case 'debug_clearAsyncOperations': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            if (!asyncDebugger) {
+              return { content: [{ type: 'text', text: 'Async debugger not available.' }] };
+            }
+
+            await asyncDebugger.clearAsyncOperations(sessionId);
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              message: 'Async operations cleared',
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: `Failed to clear async operations: ${error}` }] };
           }
         }
 
