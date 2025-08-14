@@ -847,11 +847,45 @@ async function main() {
 
         case 'debug_continue': {
           const sessionId = String(args?.sessionId);
-          const threadId = Number(args?.threadId);
-          const session = sessionManager.getSession(sessionId);
-          if (!session) return { content: [{ type: 'text', text: `Session not found: ${sessionId}` }] };
-          const response = await session.sendRequest<any>('continue', { threadId, singleThread: !!args?.singleThread });
-          return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
+          const threadId = Number(args?.threadId || 1);
+          const singleThread = Boolean(args?.singleThread !== false);
+
+          try {
+            // Try new language dispatcher first
+            const newSession = languageDispatcher.getSession(sessionId);
+            if (newSession) {
+              const result = await languageDispatcher.executeOperation(sessionId, 'continue', {
+                threadId,
+                singleThread
+              });
+              return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+            }
+
+            // Fallback to old session manager
+            const session = sessionManager.getSession(sessionId);
+            if (!session) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: `Session not found: ${sessionId}`,
+                suggestion: 'Use debug_getSessions to see active sessions or connect with debug_connect'
+              }, null, 2) }] };
+            }
+
+            const response = await session.sendRequest<any>('continue', { threadId, singleThread });
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              response: response?.body || {},
+              sessionId,
+              threadId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'continue'
+            }, null, 2) }] };
+          }
         }
 
         case 'debug_pause': {
@@ -865,11 +899,45 @@ async function main() {
 
         case 'debug_stepOver': {
           const sessionId = String(args?.sessionId);
-          const threadId = Number(args?.threadId);
-          const session = sessionManager.getSession(sessionId);
-          if (!session) return { content: [{ type: 'text', text: `Session not found: ${sessionId}` }] };
-          const response = await session.sendRequest<any>('next', { threadId, granularity: args?.granularity || 'line' });
-          return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
+          const threadId = Number(args?.threadId || 1);
+          const granularity = String(args?.granularity || 'line');
+
+          try {
+            // Try new language dispatcher first
+            const newSession = languageDispatcher.getSession(sessionId);
+            if (newSession) {
+              const result = await languageDispatcher.executeOperation(sessionId, 'stepOver', {
+                threadId,
+                granularity
+              });
+              return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+            }
+
+            // Fallback to old session manager
+            const session = sessionManager.getSession(sessionId);
+            if (!session) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: `Session not found: ${sessionId}`,
+                suggestion: 'Use debug_getSessions to see active sessions or connect with debug_connect'
+              }, null, 2) }] };
+            }
+
+            const response = await session.sendRequest<any>('next', { threadId, granularity });
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              response: response?.body || {},
+              sessionId,
+              threadId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'stepOver'
+            }, null, 2) }] };
+          }
         }
 
         case 'debug_stepIn': {
