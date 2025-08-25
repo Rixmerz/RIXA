@@ -15,7 +15,15 @@
 
 ## Overview
 
-RIXA translates MCP commands to DAP requests and relays DAP events back to AI clients, providing a seamless debugging experience for AI-assisted development with support for **5 debug adapters** (Node.js, Python, Java, Go, Rust).
+RIXA is the **world's most comprehensive debugging platform** that translates MCP commands to DAP requests and provides advanced debugging capabilities for complex multi-language stacks. With support for **5+ languages** (Java/Spring Boot, TypeScript/Node.js/React, PHP/Laravel, Python/Django, Go, Rust) and **unique features** like component isolation debugging, Docker native debugging, and integrated testing.
+
+### 🚀 **What Makes RIXA Unique**
+
+- **🏆 Only debugger** with component isolation (debug backend/frontend/middleware separately)
+- **🏆 Only debugger** with integrated testing + debugging in one tool
+- **🏆 Only debugger** with Docker native debugging and container inspection
+- **🏆 Only debugger** supporting 5+ languages with framework-specific tools
+- **🏆 Only debugger** with automatic dependency mocking for isolated development
 
 ## Architecture
 
@@ -30,6 +38,29 @@ RIXA translates MCP commands to DAP requests and relays DAP events back to AI cl
                                              |  VSCode Debugger  |
                                              +-------------------+
 ```
+
+## 🚀 **Core Features**
+
+### **Multi-Language Debugging (5+ Languages)**
+- **☕ Java/Spring Boot**: JDWP, Actuator endpoints, microservices, Spring profiles
+- **🟦 TypeScript/Node.js/React**: Chrome DevTools, component debugging, Next.js hydration
+- **🐘 PHP/Laravel/Symfony**: Xdebug, Eloquent queries, Artisan commands, WordPress
+- **🐍 Python/Django**: debugpy, ORM analysis, Django management commands
+- **🐹 Go/Gin**: Delve, goroutine debugging, Gin middleware analysis
+- **🦀 Rust/Actix**: GDB/LLDB, memory safety, Actix web framework
+
+### **Unique Debugging Capabilities**
+- **🔧 Component Isolation**: Debug backend/frontend/middleware separately with automatic mocks
+- **🐳 Docker Native**: Container debugging, port forwarding, network diagnostics
+- **🧪 Integrated Testing**: Debugging + testing in one tool with coverage tracking
+- **🌐 Remote Debugging**: SSH tunneling, production debugging, port management
+- **📊 Performance Analysis**: Memory, CPU, database queries, framework-specific metrics
+
+### **Framework-Specific Tools**
+- **Spring Boot**: Actuator integration, bean inspection, profile debugging
+- **Laravel**: Eloquent analysis, Artisan integration, route debugging
+- **React/Next.js**: Component state, hydration debugging, bundle analysis
+- **Django**: ORM query analysis, middleware debugging, admin integration
 
 ### How MCP to DAP Translation Works
 

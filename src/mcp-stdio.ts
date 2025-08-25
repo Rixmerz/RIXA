@@ -240,7 +240,7 @@ async function main() {
     { name: 'debug_getThreads', description: 'Get all threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     { name: 'debug_getStackTrace', description: 'Get stack trace for a thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, startFrame: { type: 'number' }, levels: { type: 'number' } }, required: ['sessionId','threadId'] } },
     { name: 'debug_getVariables', description: 'Get variables for a scope', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, variablesReference: { type: 'number' }, filter: { type: 'string', enum: ['indexed','named'] }, start: { type: 'number' }, count: { type: 'number' } }, required: ['sessionId','variablesReference'] } },
-    { name: 'debug_evaluate', description: 'Evaluate an expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' }, context: { type: 'string', enum: ['watch','repl','hover','clipboard'] } }, required: ['sessionId','expression'] } },
+
     { name: 'debug_terminate', description: 'Terminate session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     // Enhanced
     { name: 'debug_getEnhancedStackTrace', description: 'Enhanced stack trace with scopes and variables', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, includeScopes: { type: 'boolean' }, includeVariables: { type: 'boolean' } }, required: ['sessionId','threadId'] } },
@@ -258,7 +258,7 @@ async function main() {
     { name: 'debug_health', description: 'Quick health summary', inputSchema: { type: 'object', properties: {} } },
     { name: 'debug_checkPorts', description: 'Check common debugger ports availability', inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['node','python','java','go','rust'] } } } },
     { name: 'debug_setup', description: 'Non-interactive setup wizard (dry run or fixes)', inputSchema: { type: 'object', properties: { installMissing: { type: 'boolean' }, execute: { type: 'boolean' }, lang: { type: 'string', enum: ['node','python','java','go','rust'] }, confirm: { type: 'string' } } } },
-    { name: 'debug_diagnoseJava', description: 'Comprehensive Java debugging environment diagnosis', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } } } },
+    { name: 'debug_diagnoseJavaEnvironment', description: 'Comprehensive Java debugging environment diagnosis', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } } } },
     { name: 'debug_enhancedJavaDetection', description: 'Enhanced Java project detection and analysis', inputSchema: { type: 'object', properties: { workspaceRoot: { type: 'string' } }, required: ['workspaceRoot'] } },
     { name: 'debug_validateJDWPConnection', description: 'Validate JDWP connection with retry logic', inputSchema: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' }, timeout: { type: 'number' }, retryAttempts: { type: 'number' } }, required: ['host', 'port'] } },
     { name: 'debug_scanJDWPAgents', description: 'Scan for active JDWP debug agents', inputSchema: { type: 'object', properties: { portStart: { type: 'number' }, portEnd: { type: 'number' } } } },
@@ -310,7 +310,101 @@ async function main() {
 
     // Diagnostic Tools
     { name: 'debug_diagnoseConnection', description: 'Diagnose connection issues and WebSocket status', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
-    { name: 'debug_quickStart', description: 'Quick start debugging with auto-detection', inputSchema: { type: 'object', properties: { projectPath: { type: 'string' }, language: { type: 'string', enum: ['auto', 'javascript', 'typescript', 'node', 'react', 'nextjs'] }, autoBreakpoints: { type: 'array', items: { type: 'string' } } }, required: ['projectPath'] } }
+    { name: 'debug_diagnoseFramework', description: 'Diagnose framework-specific WebSocket connectivity and capabilities', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_diagnoseJava', description: 'Diagnose Java-specific debugging capabilities and JDWP connectivity', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_quickStart', description: 'Quick start debugging with auto-detection', inputSchema: { type: 'object', properties: { projectPath: { type: 'string' }, language: { type: 'string', enum: ['auto', 'javascript', 'typescript', 'node', 'react', 'nextjs', 'java', 'python', 'django', 'go', 'gin', 'rust', 'actix', 'php', 'laravel', 'symfony', 'wordpress'] }, autoBreakpoints: { type: 'array', items: { type: 'string' } } }, required: ['projectPath'] } },
+
+    // Java-specific Tools
+    { name: 'debug_setJavaBreakpoint', description: 'Set breakpoint in Java class', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, className: { type: 'string' }, lineNumber: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'className', 'lineNumber'] } },
+    { name: 'debug_getJavaThreads', description: 'Get Java application threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getJavaStackTrace', description: 'Get Java stack trace for thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_evaluateJavaExpression', description: 'Evaluate Java expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' } }, required: ['sessionId', 'expression'] } },
+    { name: 'debug_getJavaPerformanceMetrics', description: 'Get Java application performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, metricsType: { type: 'string', enum: ['general', 'memory', 'gc', 'threads'] } }, required: ['sessionId'] } },
+
+    // Framework WebSocket Complete Tools
+    { name: 'debug_getReactComponentDetails', description: 'Get detailed React component information (state, props, hooks)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, componentName: { type: 'string' }, detailType: { type: 'string', enum: ['all', 'state', 'props', 'hooks'] } }, required: ['sessionId', 'componentName'] } },
+    { name: 'debug_setReactComponentBreakpoint', description: 'Set breakpoint on React component render/lifecycle', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, componentName: { type: 'string' }, breakpointType: { type: 'string', enum: ['render', 'mount', 'update', 'unmount'] }, condition: { type: 'string' } }, required: ['sessionId', 'componentName'] } },
+    { name: 'debug_analyzeNextJsIssues', description: 'Analyze Next.js framework issues (hydration, performance, bundle)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, analysisType: { type: 'string', enum: ['hydrationMismatches', 'performanceBottlenecks', 'bundleSize'] } }, required: ['sessionId', 'analysisType'] } },
+    { name: 'debug_getNextJsHydrationInfo', description: 'Get Next.js hydration information and mismatch analysis', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+
+    // Python-specific Tools
+    { name: 'debug_setPythonBreakpoint', description: 'Set breakpoint in Python file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'file', 'line'] } },
+    { name: 'debug_getPythonThreads', description: 'Get Python application threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getPythonStackTrace', description: 'Get Python stack trace for thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_evaluatePythonExpression', description: 'Evaluate Python expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' } }, required: ['sessionId', 'expression'] } },
+    { name: 'debug_getPythonPerformanceMetrics', description: 'Get Python application performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, metricsType: { type: 'string', enum: ['general', 'memory', 'cpu', 'gc'] } }, required: ['sessionId'] } },
+
+    // Django-specific Tools
+    { name: 'debug_getDjangoInfo', description: 'Get Django application information (version, settings, apps)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getDjangoModels', description: 'Get Django models information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, appName: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_analyzeDjangoQueries', description: 'Analyze Django ORM queries for performance issues', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_startDjangoRequestTracking', description: 'Start tracking Django HTTP requests', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getDjangoRequests', description: 'Get Django HTTP requests with timing and query information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+
+    // PHP-specific Tools
+    { name: 'debug_setPHPBreakpoint', description: 'Set breakpoint in PHP file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'file', 'line'] } },
+    { name: 'debug_getPHPThreads', description: 'Get PHP application threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getPHPStackTrace', description: 'Get PHP stack trace for thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_evaluatePHPExpression', description: 'Evaluate PHP expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' } }, required: ['sessionId', 'expression'] } },
+    { name: 'debug_getPHPPerformanceMetrics', description: 'Get PHP application performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, metricsType: { type: 'string', enum: ['general', 'memory', 'execution', 'database', 'framework'] } }, required: ['sessionId'] } },
+    { name: 'debug_startPHPHttpRequestTracking', description: 'Start tracking PHP HTTP requests', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_stopPHPHttpRequestTracking', description: 'Stop tracking PHP HTTP requests and get results', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getPHPHttpRequests', description: 'Get PHP HTTP requests with timing information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_getPHPComposerPackages', description: 'Get Composer packages information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+
+    // Laravel-specific Tools
+    { name: 'debug_getLaravelInfo', description: 'Get Laravel application information (version, routes, config)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getLaravelRoutes', description: 'Get Laravel routes information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getLaravelMiddleware', description: 'Get Laravel middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getEloquentQueries', description: 'Get Eloquent ORM queries', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_analyzeEloquentQueries', description: 'Analyze Eloquent queries for performance issues', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getLaravelJobs', description: 'Get Laravel queue jobs', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getLaravelFailedJobs', description: 'Get Laravel failed queue jobs', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getLaravelEvents', description: 'Get Laravel events', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_getArtisanCommands', description: 'Get available Artisan commands', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_executeArtisanCommand', description: 'Execute Artisan command', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, command: { type: 'string' }, args: { type: 'array', items: { type: 'string' } } }, required: ['sessionId', 'command'] } },
+    { name: 'debug_getLaravelPerformanceMetrics', description: 'Get Laravel performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_setLaravelRouteBreakpoint', description: 'Set breakpoint on Laravel route', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, routeName: { type: 'string' }, condition: { type: 'string' } }, required: ['sessionId', 'routeName'] } },
+
+    // Symfony-specific Tools
+    { name: 'debug_getSymfonyInfo', description: 'Get Symfony application information (version, routes, services)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+
+    // WordPress-specific Tools
+    { name: 'debug_getWordPressInfo', description: 'Get WordPress information (version, plugins, theme, hooks)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+
+    // Go-specific Tools
+    { name: 'debug_setGoBreakpoint', description: 'Set breakpoint in Go file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'file', 'line'] } },
+    { name: 'debug_setGoFunctionBreakpoint', description: 'Set breakpoint on Go function', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, functionName: { type: 'string' }, condition: { type: 'string' } }, required: ['sessionId', 'functionName'] } },
+    { name: 'debug_getGoThreads', description: 'Get Go application threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getGoGoroutines', description: 'Get Go goroutines information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getGoStackTrace', description: 'Get Go stack trace for thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_evaluateGoExpression', description: 'Evaluate Go expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' } }, required: ['sessionId', 'expression'] } },
+    { name: 'debug_getGoPackages', description: 'Get Go packages information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getGoPerformanceMetrics', description: 'Get Go application performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, metricsType: { type: 'string', enum: ['general', 'memory', 'goroutines', 'gc'] } }, required: ['sessionId'] } },
+
+    // Gin-specific Tools
+    { name: 'debug_getGinRoutes', description: 'Get Gin framework routes information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getGinMiddleware', description: 'Get Gin middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_analyzeGinPerformance', description: 'Analyze Gin framework performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_startGinRequestTracking', description: 'Start tracking Gin HTTP requests', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getGinRequests', description: 'Get Gin HTTP requests with timing and middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+
+    // Rust-specific Tools
+    { name: 'debug_setRustBreakpoint', description: 'Set breakpoint in Rust file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'file', 'line'] } },
+    { name: 'debug_setRustFunctionBreakpoint', description: 'Set breakpoint on Rust function', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, functionName: { type: 'string' }, condition: { type: 'string' } }, required: ['sessionId', 'functionName'] } },
+    { name: 'debug_getRustThreads', description: 'Get Rust application threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getRustStackTrace', description: 'Get Rust stack trace for thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_evaluateRustExpression', description: 'Evaluate Rust expression', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' } }, required: ['sessionId', 'expression'] } },
+    { name: 'debug_getRustCrates', description: 'Get Rust crates information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getRustPerformanceMetrics', description: 'Get Rust application performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, metricsType: { type: 'string', enum: ['general', 'memory', 'cpu', 'ownership'] } }, required: ['sessionId'] } },
+
+    // Actix-specific Tools
+    { name: 'debug_getActixRoutes', description: 'Get Actix-web framework routes information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getActixMiddleware', description: 'Get Actix middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getActixHandlers', description: 'Get Actix handlers information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_analyzeActixPerformance', description: 'Analyze Actix framework performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_startActixRequestTracking', description: 'Start tracking Actix HTTP requests', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getActixRequests', description: 'Get Actix HTTP requests with timing and middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -828,10 +922,41 @@ async function main() {
 
         case 'debug_getThreads': {
           const sessionId = String(args?.sessionId);
-          const session = sessionManager.getSession(sessionId);
-          if (!session) return { content: [{ type: 'text', text: `Session not found: ${sessionId}` }] };
-          const response = await session.sendRequest<any>('threads');
-          return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
+
+          try {
+            // CRITICAL FIX: Use LanguageDispatcher for unified session management
+            const result = await languageDispatcher.executeOperation(sessionId, 'getThreads', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            // Fallback to old SessionManager for backward compatibility
+            try {
+              const session = sessionManager.getSession(sessionId);
+              if (!session) {
+                return { content: [{ type: 'text', text: JSON.stringify({
+                  success: false,
+                  error: `Session not found: ${sessionId}`,
+                  sessionId,
+                  operation: 'getThreads',
+                  suggestion: 'Make sure to connect first with debug_connect'
+                }, null, 2) }] };
+              }
+              const response = await session.sendRequest<any>('threads');
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: true,
+                data: response?.body || {},
+                sessionId,
+                operation: 'getThreads'
+              }, null, 2) }] };
+            } catch (fallbackError) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+                fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+                sessionId,
+                operation: 'getThreads'
+              }, null, 2) }] };
+            }
+          }
         }
 
         case 'debug_getStackTrace': {
@@ -1108,22 +1233,46 @@ async function main() {
           const filter = args?.filter as 'indexed' | 'named' | undefined;
           const start = args?.start ? Number(args.start) : undefined;
           const count = args?.count ? Number(args.count) : undefined;
-          const session = sessionManager.getSession(sessionId);
-          if (!session) return { content: [{ type: 'text', text: `Session not found: ${sessionId}` }] };
-          const response = await session.sendRequest<any>('variables', { variablesReference, filter, start, count });
-          return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
+
+          try {
+            // CRITICAL FIX: Use LanguageDispatcher for unified session management
+            const result = await languageDispatcher.executeOperation(sessionId, 'getVariables', {
+              variablesReference, filter, start, count
+            });
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            // Fallback to old SessionManager for backward compatibility
+            try {
+              const session = sessionManager.getSession(sessionId);
+              if (!session) {
+                return { content: [{ type: 'text', text: JSON.stringify({
+                  success: false,
+                  error: `Session not found: ${sessionId}`,
+                  sessionId,
+                  operation: 'getVariables',
+                  suggestion: 'Make sure to connect first with debug_connect'
+                }, null, 2) }] };
+              }
+              const response = await session.sendRequest<any>('variables', { variablesReference, filter, start, count });
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: true,
+                data: response?.body || {},
+                sessionId,
+                operation: 'getVariables'
+              }, null, 2) }] };
+            } catch (fallbackError) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+                fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+                sessionId,
+                operation: 'getVariables'
+              }, null, 2) }] };
+            }
+          }
         }
 
-        case 'debug_evaluate': {
-          const sessionId = String(args?.sessionId);
-          const expression = String(args?.expression);
-          const frameId = args?.frameId ? Number(args.frameId) : undefined;
-          const context = (args?.context as any) || 'repl';
-          const session = sessionManager.getSession(sessionId);
-          if (!session) return { content: [{ type: 'text', text: `Session not found: ${sessionId}` }] };
-          const response = await session.sendRequest<any>('evaluate', { expression, frameId, context });
-          return { content: [{ type: 'text', text: JSON.stringify(response?.body || {}, null, 2) }] };
-        }
+
 
         case 'debug_getEnhancedStackTrace': {
           const sessionId = String(args?.sessionId);
@@ -1310,7 +1459,7 @@ async function main() {
           return { content: [{ type: 'text', text: `Terminated session ${sessionId}` }] };
         }
 
-        case 'debug_diagnoseJava': {
+        case 'debug_diagnoseJavaEnvironment': {
           const workspaceRoot = args?.workspaceRoot ? String(args.workspaceRoot) : process.cwd();
 
           const diagnosis = {
@@ -2298,6 +2447,1357 @@ async function main() {
               error: error instanceof Error ? error.message : String(error),
               sessionId,
               operation: 'diagnoseConnection'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_diagnoseFramework': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const session = languageDispatcher.getSession(sessionId);
+            if (!session) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: `Session not found: ${sessionId}`,
+                diagnosis: {
+                  sessionExists: false,
+                  recommendations: [
+                    'Check if the session ID is correct',
+                    'Try connecting again with debug_connect',
+                    'Use debug_getSessions to see active sessions'
+                  ]
+                }
+              }, null, 2) }] };
+            }
+
+            const { language, debugger: debuggerInfo } = session;
+            const isFramework = language === 'react' || language === 'nextjs';
+
+            if (!isFramework) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: `Session ${sessionId} is not a framework session (language: ${language})`,
+                diagnosis: {
+                  isFramework: false,
+                  language,
+                  recommendations: [
+                    'This diagnostic is for React/Next.js sessions only',
+                    'Use debug_diagnoseConnection for general connection issues'
+                  ]
+                }
+              }, null, 2) }] };
+            }
+
+            const diagnosis = {
+              sessionExists: true,
+              sessionId: session.sessionId,
+              language: session.language,
+              framework: session.framework,
+              isFramework: true,
+              debuggerType: debuggerInfo?.type || 'unknown',
+              webSocketUrl: debuggerInfo?.webSocketUrl || null,
+              connected: debuggerInfo?.connected || false,
+              hasWebSocket: !!(debuggerInfo?.webSocketUrl && (debuggerInfo?.type?.includes('node') || debuggerInfo?.type === 'node-inspector')),
+              capabilities: {
+                getComponents: true,
+                getFrameworkInfo: true,
+                analyzeFrameworkIssues: true,
+                setBreakpoints: !!(debuggerInfo?.webSocketUrl),
+                evaluate: !!(debuggerInfo?.webSocketUrl),
+                controlFlow: !!(debuggerInfo?.webSocketUrl)
+              },
+              recommendations: [] as string[]
+            };
+
+            // Add specific recommendations for framework debugging
+            if (!diagnosis.hasWebSocket) {
+              diagnosis.recommendations.push('⚠️  No WebSocket connection detected for framework session');
+              diagnosis.recommendations.push('For full functionality, ensure your app is running with Node.js --inspect flag');
+              diagnosis.recommendations.push(`Example: node --inspect=0.0.0.0:9229 ${language === 'nextjs' ? 'next dev' : 'your-react-app.js'}`);
+              diagnosis.recommendations.push('Framework operations will work in limited mode without WebSocket');
+            } else {
+              diagnosis.recommendations.push('✅ WebSocket connection available - full framework debugging enabled');
+              diagnosis.recommendations.push('All framework operations should work correctly');
+            }
+
+            if (language === 'react') {
+              diagnosis.recommendations.push('For React DevTools integration, install React DevTools browser extension');
+              diagnosis.recommendations.push('Component inspection and profiling available');
+            }
+
+            if (language === 'nextjs') {
+              diagnosis.recommendations.push('Next.js specific debugging includes SSR, hydration, and API route debugging');
+              diagnosis.recommendations.push('Bundle analysis and performance metrics available');
+            }
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              diagnosis
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'diagnoseFramework'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_diagnoseJava': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const session = languageDispatcher.getSession(sessionId);
+            if (!session) {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: `Session not found: ${sessionId}`,
+                diagnosis: {
+                  sessionExists: false,
+                  recommendations: [
+                    'Check if the session ID is correct',
+                    'Try connecting again with debug_connect',
+                    'Use debug_getSessions to see active sessions'
+                  ]
+                }
+              }, null, 2) }] };
+            }
+
+            const { language, debugger: debuggerInfo } = session;
+
+            if (language !== 'java') {
+              return { content: [{ type: 'text', text: JSON.stringify({
+                success: false,
+                error: `Session ${sessionId} is not a Java session (language: ${language})`,
+                diagnosis: {
+                  isJava: false,
+                  language,
+                  recommendations: [
+                    'This diagnostic is for Java sessions only',
+                    'Use debug_diagnoseConnection for general connection issues'
+                  ]
+                }
+              }, null, 2) }] };
+            }
+
+            const diagnosis = {
+              sessionExists: true,
+              sessionId: session.sessionId,
+              language: session.language,
+              isJava: true,
+              debuggerType: debuggerInfo?.type || 'unknown',
+              connected: debuggerInfo?.connected || false,
+              connectionType: debuggerInfo?.connectionInfo?.type || 'unknown',
+              jdwpEnabled: debuggerInfo?.connectionInfo?.type === 'jdwp',
+              hybridMode: debuggerInfo?.connectionInfo?.hybridMode || false,
+              observerMode: debuggerInfo?.connectionInfo?.observerMode || false,
+              capabilities: {
+                setBreakpoints: true,
+                getThreads: true,
+                getStackTrace: true,
+                evaluate: true,
+                controlFlow: true,
+                performanceMetrics: true,
+                profiling: true
+              },
+              recommendations: [] as string[]
+            };
+
+            // Add specific recommendations for Java debugging
+            if (!diagnosis.connected) {
+              diagnosis.recommendations.push('⚠️  Java session not connected');
+              diagnosis.recommendations.push('Ensure your Java app is running with JDWP agent');
+              diagnosis.recommendations.push('Example: java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 YourMainClass');
+              diagnosis.recommendations.push('Or try hybrid debugging for Spring Boot applications');
+            } else {
+              diagnosis.recommendations.push('✅ Java debugging connection established');
+
+              if (diagnosis.jdwpEnabled) {
+                diagnosis.recommendations.push('✅ JDWP connection active - full debugging capabilities available');
+                diagnosis.recommendations.push('All Java debugging operations should work correctly');
+              } else if (diagnosis.hybridMode) {
+                diagnosis.recommendations.push('✅ Hybrid debugging mode active - log watching and API testing available');
+                diagnosis.recommendations.push('Breakpoint simulation and performance monitoring enabled');
+              }
+
+              if (diagnosis.observerMode) {
+                diagnosis.recommendations.push('ℹ️  Observer mode enabled - non-intrusive debugging');
+              }
+            }
+
+            diagnosis.recommendations.push('Available Java operations: setJavaBreakpoint, getJavaThreads, getJavaStackTrace, evaluateJavaExpression');
+            diagnosis.recommendations.push('Performance monitoring: getJavaPerformanceMetrics with memory, GC, and thread metrics');
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              diagnosis
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'diagnoseJava'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setJavaBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const className = String(args?.className);
+          const lineNumber = Number(args?.lineNumber);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setBreakpoint', {
+              className,
+              lineNumber,
+              condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setJavaBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getJavaThreads': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getThreads', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getJavaThreads'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getJavaStackTrace': {
+          const sessionId = String(args?.sessionId);
+          const threadId = args?.threadId ? Number(args.threadId) : 1;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getStackTrace', {
+              threadId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getJavaStackTrace'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_evaluateJavaExpression': {
+          const sessionId = String(args?.sessionId);
+          const expression = String(args?.expression);
+          const frameId = args?.frameId ? Number(args.frameId) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'evaluate', {
+              expression,
+              frameId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'evaluateJavaExpression'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getJavaPerformanceMetrics': {
+          const sessionId = String(args?.sessionId);
+          const metricsType = args?.metricsType ? String(args.metricsType) : 'general';
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getPerformanceMetrics', {
+              metricsType
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getJavaPerformanceMetrics'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getReactComponentDetails': {
+          const sessionId = String(args?.sessionId);
+          const componentName = String(args?.componentName);
+          const detailType = args?.detailType ? String(args.detailType) : 'all';
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getComponentDetails', {
+              componentName,
+              detailType
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getReactComponentDetails'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setReactComponentBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const componentName = String(args?.componentName);
+          const breakpointType = args?.breakpointType ? String(args.breakpointType) : 'render';
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setComponentBreakpoint', {
+              componentName,
+              breakpointType,
+              condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setReactComponentBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_analyzeNextJsIssues': {
+          const sessionId = String(args?.sessionId);
+          const analysisType = String(args?.analysisType);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'analyzeFrameworkIssues', {
+              analysisType
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'analyzeNextJsIssues'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getNextJsHydrationInfo': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getFrameworkInfo', {
+              infoType: 'hydrationInfo'
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getNextJsHydrationInfo'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setPythonBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const file = String(args?.file);
+          const line = Number(args?.line);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setBreakpoint', {
+              file,
+              line,
+              condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setPythonBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPythonThreads': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getThreads', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPythonThreads'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPythonStackTrace': {
+          const sessionId = String(args?.sessionId);
+          const threadId = args?.threadId ? Number(args.threadId) : 1;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getStackTrace', {
+              threadId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPythonStackTrace'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_evaluatePythonExpression': {
+          const sessionId = String(args?.sessionId);
+          const expression = String(args?.expression);
+          const frameId = args?.frameId ? Number(args.frameId) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'evaluate', {
+              expression,
+              frameId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'evaluatePythonExpression'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPythonPerformanceMetrics': {
+          const sessionId = String(args?.sessionId);
+          const metricsType = args?.metricsType ? String(args.metricsType) : 'general';
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getPerformanceMetrics', {
+              metricsType
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPythonPerformanceMetrics'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDjangoInfo': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getDjangoInfo', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getDjangoInfo'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDjangoModels': {
+          const sessionId = String(args?.sessionId);
+          const appName = args?.appName ? String(args.appName) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getDjangoModels', {
+              appName
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getDjangoModels'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_analyzeDjangoQueries': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'analyzeDjangoQueries', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'analyzeDjangoQueries'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_startDjangoRequestTracking': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'startDjangoRequestTracking', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'startDjangoRequestTracking'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDjangoRequests': {
+          const sessionId = String(args?.sessionId);
+          const limit = args?.limit ? Number(args.limit) : 50;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getDjangoRequests', {
+              limit
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getDjangoRequests'
+            }, null, 2) }] };
+          }
+        }
+
+        // PHP-specific handlers
+        case 'debug_setPHPBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const file = String(args?.file);
+          const line = Number(args?.line);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setBreakpoint', {
+              file, line, condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setPHPBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPHPThreads': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getThreads', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPHPThreads'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPHPStackTrace': {
+          const sessionId = String(args?.sessionId);
+          const threadId = Number(args?.threadId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getStackTrace', {
+              threadId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPHPStackTrace'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_evaluatePHPExpression': {
+          const sessionId = String(args?.sessionId);
+          const expression = String(args?.expression);
+          const frameId = args?.frameId ? Number(args.frameId) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'evaluateExpression', {
+              expression, frameId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'evaluatePHPExpression'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPHPPerformanceMetrics': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getPerformanceMetrics', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPHPPerformanceMetrics'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_startPHPHttpRequestTracking': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'startHttpRequestTracking', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'startPHPHttpRequestTracking'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_stopPHPHttpRequestTracking': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'stopHttpRequestTracking', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'stopPHPHttpRequestTracking'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPHPHttpRequests': {
+          const sessionId = String(args?.sessionId);
+          const limit = args?.limit ? Number(args.limit) : 50;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getHttpRequests', {
+              limit
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPHPHttpRequests'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getPHPComposerPackages': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getComposerPackages', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getPHPComposerPackages'
+            }, null, 2) }] };
+          }
+        }
+
+        // Laravel-specific handlers
+        case 'debug_getLaravelInfo': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getLaravelInfo', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getLaravelInfo'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getLaravelRoutes': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getLaravelRoutes', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getLaravelRoutes'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getLaravelMiddleware': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getLaravelMiddleware', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getLaravelMiddleware'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getEloquentQueries': {
+          const sessionId = String(args?.sessionId);
+          const limit = args?.limit ? Number(args.limit) : 100;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getEloquentQueries', {
+              limit
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getEloquentQueries'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_analyzeEloquentQueries': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'analyzeEloquentQueries', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'analyzeEloquentQueries'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getLaravelJobs': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getLaravelJobs', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getLaravelJobs'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getLaravelFailedJobs': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getLaravelFailedJobs', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getLaravelFailedJobs'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getLaravelEvents': {
+          const sessionId = String(args?.sessionId);
+          const limit = args?.limit ? Number(args.limit) : 100;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getLaravelEvents', {
+              limit
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getLaravelEvents'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setGoBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const file = String(args?.file);
+          const line = Number(args?.line);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setBreakpoint', {
+              file,
+              line,
+              condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setGoBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setGoFunctionBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const functionName = String(args?.functionName);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setFunctionBreakpoint', {
+              functionName,
+              condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setGoFunctionBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGoThreads': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getThreads', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGoThreads'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGoGoroutines': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getGoroutines', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGoGoroutines'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGoStackTrace': {
+          const sessionId = String(args?.sessionId);
+          const threadId = args?.threadId ? Number(args.threadId) : 1;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getStackTrace', {
+              threadId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGoStackTrace'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_evaluateGoExpression': {
+          const sessionId = String(args?.sessionId);
+          const expression = String(args?.expression);
+          const frameId = args?.frameId ? Number(args.frameId) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'evaluate', {
+              expression,
+              frameId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'evaluateGoExpression'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGoPackages': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getPackages', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGoPackages'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGoPerformanceMetrics': {
+          const sessionId = String(args?.sessionId);
+          const metricsType = args?.metricsType ? String(args.metricsType) : 'general';
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getPerformanceMetrics', {
+              metricsType
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGoPerformanceMetrics'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGinRoutes': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getGinRoutes', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGinRoutes'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGinMiddleware': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getGinMiddleware', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGinMiddleware'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_analyzeGinPerformance': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'analyzeGinPerformance', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'analyzeGinPerformance'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_startGinRequestTracking': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'startGinRequestTracking', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'startGinRequestTracking'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getGinRequests': {
+          const sessionId = String(args?.sessionId);
+          const limit = args?.limit ? Number(args.limit) : 50;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getGinRequests', {
+              limit
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getGinRequests'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setRustBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const file = String(args?.file);
+          const line = Number(args?.line);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setBreakpoint', {
+              file,
+              line,
+              condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setRustBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setRustFunctionBreakpoint': {
+          const sessionId = String(args?.sessionId);
+          const functionName = String(args?.functionName);
+          const condition = args?.condition ? String(args.condition) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setFunctionBreakpoint', {
+              functionName,
+              condition
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setRustFunctionBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getRustThreads': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getThreads', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getRustThreads'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getRustStackTrace': {
+          const sessionId = String(args?.sessionId);
+          const threadId = args?.threadId ? Number(args.threadId) : 1;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getStackTrace', {
+              threadId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getRustStackTrace'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_evaluateRustExpression': {
+          const sessionId = String(args?.sessionId);
+          const expression = String(args?.expression);
+          const frameId = args?.frameId ? Number(args.frameId) : undefined;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'evaluate', {
+              expression,
+              frameId
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'evaluateRustExpression'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getRustCrates': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getCrates', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getRustCrates'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getRustPerformanceMetrics': {
+          const sessionId = String(args?.sessionId);
+          const metricsType = args?.metricsType ? String(args.metricsType) : 'general';
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getPerformanceMetrics', {
+              metricsType
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getRustPerformanceMetrics'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getActixRoutes': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getActixRoutes', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getActixRoutes'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getActixMiddleware': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getActixMiddleware', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getActixMiddleware'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getActixHandlers': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getActixHandlers', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getActixHandlers'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_analyzeActixPerformance': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'analyzeActixPerformance', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'analyzeActixPerformance'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_startActixRequestTracking': {
+          const sessionId = String(args?.sessionId);
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'startActixRequestTracking', {});
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'startActixRequestTracking'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getActixRequests': {
+          const sessionId = String(args?.sessionId);
+          const limit = args?.limit ? Number(args.limit) : 50;
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'getActixRequests', {
+              limit
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getActixRequests'
             }, null, 2) }] };
           }
         }
