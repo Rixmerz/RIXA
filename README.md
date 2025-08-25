@@ -205,14 +205,6 @@ src/
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-### **Development Setup**
-```bash
-git clone https://github.com/Rixmerz/RIXA.git
-cd RIXA
-npm install
-npm run dev
-```
-
 ### **Running Tests**
 ```bash
 npm test                    # Run all tests
