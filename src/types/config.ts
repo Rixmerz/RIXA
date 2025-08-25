@@ -57,6 +57,12 @@ export const DapConfigSchema = z.object({
         args: ['--inspect-brk=0'],
         transport: 'stdio',
       },
+      electron: {
+        command: 'electron',
+        args: ['--inspect=9229', '--remote-debugging-port=9222'],
+        transport: 'tcp',
+        port: 9229,
+      },
     }),
   timeout: z.number().int().min(1000).default(30000), // 30 seconds
 });

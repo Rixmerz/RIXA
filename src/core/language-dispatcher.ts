@@ -9,6 +9,7 @@ import type { Logger } from '../utils/logger.js';
 import { BrowserDebugger } from '../typescript/browser-debugger.js';
 import { ReactDebugger } from '../typescript/react-debugger.js';
 import { NextJsDebugger } from '../typescript/nextjs-debugger.js';
+import { ElectronDebugger } from '../electron/electron-debugger.js';
 import { SessionManager } from './session.js';
 
 export type SupportedLanguage =
@@ -17,6 +18,7 @@ export type SupportedLanguage =
   | 'node'
   | 'react'
   | 'nextjs'
+  | 'electron'
   | 'java'
   | 'python'
   | 'go'
@@ -119,6 +121,10 @@ export class LanguageDispatcher {
 
         case 'php':
           debuggerInstance = await this.connectToPHP({ host, port: port || 9003 });
+          break;
+
+        case 'electron':
+          debuggerInstance = await this.connectToElectron({ host, port, ...options });
           break;
 
         default:
@@ -3090,6 +3096,59 @@ export class LanguageDispatcher {
 
       default:
         throw new Error(`Unsupported profiling operation: ${operation}`);
+    }
+  }
+
+  private async connectToElectron(options: any): Promise<any> {
+    try {
+      const electronDebugger = new ElectronDebugger();
+
+      const config = {
+        host: options.host || 'localhost',
+        mainPort: options.mainPort || 9229,
+        rendererPort: options.rendererPort || 9222,
+        timeout: options.timeout || 30000,
+        autoDiscover: options.autoDiscover !== false,
+        enableIpcDebugging: options.enableIpcDebugging !== false,
+        enablePerformanceProfiling: options.enablePerformanceProfiling !== false,
+        enableSecurityDebugging: options.enableSecurityDebugging !== false,
+        enableGUIDebugging: options.enableGUIDebugging !== false,
+        projectPath: options.projectPath || process.cwd(),
+        electronPath: options.electronPath || '',
+        appPath: options.appPath || ''
+      };
+
+      const session = await electronDebugger.connect(config);
+
+      return {
+        type: 'electron-debugger',
+        electronDebugger,
+        session,
+        sessionId: session.sessionId,
+        connected: true,
+        host: config.host,
+        mainPort: config.mainPort,
+        rendererPort: config.rendererPort,
+        framework: 'electron',
+        message: `Electron debugging connected - Main: ${!!session.mainProcess}, Renderers: ${session.rendererProcesses.size}`
+      };
+    } catch (error) {
+      this.logger.error('Failed to connect to Electron debugger', {
+        error: error instanceof Error ? error.message : String(error),
+        options
+      });
+
+      // Return minimal connection for basic functionality
+      return {
+        type: 'electron-minimal',
+        connected: false,
+        host: options.host || 'localhost',
+        mainPort: options.mainPort || 9229,
+        rendererPort: options.rendererPort || 9222,
+        framework: 'electron',
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Electron debugging failed - check if Electron app is running with debugging enabled'
+      };
     }
   }
 }

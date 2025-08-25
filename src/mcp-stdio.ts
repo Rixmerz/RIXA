@@ -225,7 +225,7 @@ async function main() {
     });
   }
 
-  // Tool catalog (19 tools)
+  // Tool catalog (27 tools)
   const tools = [
     { name: 'debug_ping', description: 'Ping the RIXA MCP server', inputSchema: { type: 'object', properties: { message: { type: 'string' } } } },
     { name: 'debug_version', description: 'Return RIXA version info', inputSchema: { type: 'object', properties: {} } },
@@ -404,7 +404,17 @@ async function main() {
     { name: 'debug_getActixHandlers', description: 'Get Actix handlers information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     { name: 'debug_analyzeActixPerformance', description: 'Analyze Actix framework performance metrics', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     { name: 'debug_startActixRequestTracking', description: 'Start tracking Actix HTTP requests', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
-    { name: 'debug_getActixRequests', description: 'Get Actix HTTP requests with timing and middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } }
+    { name: 'debug_getActixRequests', description: 'Get Actix HTTP requests with timing and middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+
+    // Electron debugging tools (8 tools)
+    { name: 'debug_connectElectron', description: 'Connect to an Electron application for debugging', inputSchema: { type: 'object', properties: { host: { type: 'string' }, mainPort: { type: 'number' }, rendererPort: { type: 'number' }, timeout: { type: 'number' }, autoDiscover: { type: 'boolean' }, enableIpcDebugging: { type: 'boolean' }, enablePerformanceProfiling: { type: 'boolean' }, enableSecurityDebugging: { type: 'boolean' }, enableGUIDebugging: { type: 'boolean' }, projectPath: { type: 'string' }, electronPath: { type: 'string' }, appPath: { type: 'string' } } } },
+    { name: 'debug_getElectronProcesses', description: 'Get all Electron processes for a debugging session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_setElectronBreakpoint', description: 'Set a breakpoint in an Electron process', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processType: { type: 'string', enum: ['main', 'renderer', 'worker'] }, processId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'processType', 'file', 'line'] } },
+    { name: 'debug_inspectIPC', description: 'Inspect IPC communication between Electron processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, channelName: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_getElectronPerformance', description: 'Get performance metrics for Electron processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_analyzeElectronMemory', description: 'Analyze memory usage and detect potential leaks in Electron processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processId: { type: 'string' }, duration: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_getElectronSecurity', description: 'Get security context and analyze security configuration for Electron processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_debugElectronGUI', description: 'Debug GUI elements in Electron renderer processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, action: { type: 'string', enum: ['inspect', 'simulate', 'list'] }, elementId: { type: 'string' }, eventType: { type: 'string' }, eventOptions: { type: 'object' } }, required: ['sessionId', 'action'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -3887,6 +3897,119 @@ async function main() {
               projectPath,
               language,
               operation: 'quickStart'
+            }, null, 2) }] };
+          }
+        }
+
+        // Electron debugging tools
+        case 'debug_connectElectron': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_connectElectron.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'connectElectron'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getElectronProcesses': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_getElectronProcesses.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getElectronProcesses'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setElectronBreakpoint': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_setElectronBreakpoint.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'setElectronBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_inspectIPC': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_inspectIPC.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'inspectIPC'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getElectronPerformance': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_getElectronPerformance.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getElectronPerformance'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_analyzeElectronMemory': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_analyzeElectronMemory.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'analyzeElectronMemory'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getElectronSecurity': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_getElectronSecurity.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getElectronSecurity'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_debugElectronGUI': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_debugElectronGUI.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'debugElectronGUI'
             }, null, 2) }] };
           }
         }
