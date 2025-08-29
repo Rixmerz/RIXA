@@ -10,6 +10,11 @@ import { BrowserDebugger } from '../typescript/browser-debugger.js';
 import { ReactDebugger } from '../typescript/react-debugger.js';
 import { NextJsDebugger } from '../typescript/nextjs-debugger.js';
 import { ElectronDebugger } from '../electron/electron-debugger.js';
+import { DotNetDebugger } from '../dotnet/dotnet-debugger.js';
+import { AspNetCoreDebugger } from '../dotnet/aspnet-debugger.js';
+import { BlazorDebugger } from '../dotnet/blazor-debugger.js';
+// import { ProjectAnalyzer } from '../dotnet/project-analyzer.js';
+import { ConnectionErrorHandler, AdapterFallback } from '../dotnet/error-handling.js';
 import { SessionManager } from './session.js';
 
 export type SupportedLanguage =
@@ -845,9 +850,94 @@ export class LanguageDispatcher {
     }
   }
 
-  private async connectToDotNet(_options: any): Promise<any> {
-    // .NET connection logic
-    return { message: '.NET debugging connection - to be implemented' };
+  private async connectToDotNet(options: any): Promise<any> {
+    const { host = 'localhost', port = 4711, framework, projectPath } = options;
+    
+    this.logger.info('Connecting to .NET debugger', { host, port, framework });
+    
+    try {
+      // Analyze project before creating debugger
+      // const projectAnalysis = await new ProjectAnalyzer().analyzeProject(projectPath);
+      
+      // Select appropriate adapter based on analysis
+      const adapter = await new AdapterFallback().selectAdapter('vsdbg') as 'vsdbg' | 'netcoredbg' | 'auto';
+      
+      // Detect framework and create appropriate debugger
+      let dotnetDebugger: DotNetDebugger | AspNetCoreDebugger | BlazorDebugger;
+      let detectedFramework = framework || 'dotnet';
+      
+      if (this.isAspNetCore(projectPath)) {
+        this.logger.info('ASP.NET Core detected, using AspNetCoreDebugger');
+        dotnetDebugger = new AspNetCoreDebugger({
+          host,
+          port,
+          projectPath,
+          adapter,
+          enableHotReload: true,
+          applicationUrl: options.applicationUrl,
+          environment: options.environment || 'Development',
+          launchBrowser: options.launchBrowser !== false,
+          inspectMiddleware: options.inspectMiddleware !== false,
+          trackRequests: options.trackRequests !== false
+        }, this.logger);
+        detectedFramework = 'aspnetcore';
+      } else if (this.isBlazor(projectPath)) {
+        const blazorMode = this.detectBlazorMode(projectPath);
+        this.logger.info('Blazor detected, using BlazorDebugger', { mode: blazorMode });
+        dotnetDebugger = new BlazorDebugger({
+          host,
+          port,
+          projectPath,
+          adapter,
+          enableHotReload: true,
+          mode: blazorMode,
+          browserDebugging: options.browserDebugging !== false,
+          jsInteropTracking: options.jsInteropTracking !== false
+        }, this.logger);
+        detectedFramework = `blazor-${blazorMode.toLowerCase()}`;
+      } else {
+        this.logger.info('Using base DotNetDebugger');
+        dotnetDebugger = new DotNetDebugger({
+          host,
+          port,
+          projectPath,
+          adapter,
+          enableHotReload: true
+        }, this.logger);
+      }
+      
+      // Connect to the debugger
+      const connectionResult = await dotnetDebugger.connect();
+    
+    if (connectionResult.success) {
+      // Store the debugger instance
+      const session: LanguageDebugSession = {
+        sessionId: connectionResult.sessionId,
+        language: 'dotnet',
+        framework: detectedFramework,
+        debugger: dotnetDebugger,
+        metadata: {
+          connectionInfo: connectionResult.connectionInfo,
+          projectPath,
+          framework: detectedFramework
+        }
+      };
+      
+      this.sessions.set(connectionResult.sessionId, session);
+      this.debuggers.set('dotnet', dotnetDebugger);
+      
+      return {
+        sessionId: connectionResult.sessionId,
+        connection: connectionResult.connectionInfo,
+        capabilities: await this.getDotNetCapabilities(dotnetDebugger as DotNetDebugger)
+      };
+    }
+    } catch (error) {
+      // Handle connection errors with error handler
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      await new ConnectionErrorHandler().handleConnectionError(errorObj, options);
+      throw errorObj;
+    }
   }
 
   private async connectToPHP(options: any): Promise<any> {
@@ -2705,8 +2795,79 @@ export class LanguageDispatcher {
     }
   }
 
-  private async executeDotNetOperation(_session: LanguageDebugSession, operation: string, _params: any): Promise<any> {
-    throw new Error(`.NET operations - to be implemented: ${operation}`);
+  private async executeDotNetOperation(
+    session: LanguageDebugSession,
+    operation: string,
+    params: any
+  ): Promise<any> {
+    const dotnetDebugger = session.debugger as DotNetDebugger | AspNetCoreDebugger | BlazorDebugger;
+    
+    switch (operation) {
+      case 'setBreakpoint':
+        return await dotnetDebugger.setBreakpoint(
+          params.file,
+          params.line,
+          params.condition
+        );
+        
+      case 'continue':
+        return await dotnetDebugger.continue(params.threadId);
+        
+      case 'stepOver':
+        return await dotnetDebugger.stepOver(params.threadId);
+        
+      case 'stepIn':
+        return await dotnetDebugger.stepIn(params.threadId);
+        
+      case 'stepOut':
+        return await dotnetDebugger.stepOut(params.threadId);
+        
+      case 'getThreads':
+        return await dotnetDebugger.getThreads();
+        
+      case 'getStackTrace':
+        return await dotnetDebugger.getStackTrace(params.threadId);
+        
+      case 'getVariables':
+        return await dotnetDebugger.getVariables(params.variablesReference);
+        
+      case 'evaluate':
+        return await dotnetDebugger.evaluate(params.expression, params.frameId);
+        
+      // Framework-specific operations
+      case 'inspectMiddleware':
+        if (session.framework === 'aspnetcore' && (dotnetDebugger as any).inspectMiddleware) {
+          return await (dotnetDebugger as any).inspectMiddleware();
+        }
+        throw new Error('inspectMiddleware operation is only supported for ASP.NET Core projects');
+        
+      case 'inspectComponents':
+        if (session.framework?.startsWith('blazor') && (dotnetDebugger as any).inspectComponents) {
+          return await (dotnetDebugger as any).inspectComponents();
+        }
+        throw new Error('inspectComponents operation is only supported for Blazor projects');
+        
+      case 'inspectDbContext':
+        if ((dotnetDebugger as any).inspectDbContext) {
+          return await (dotnetDebugger as any).inspectDbContext(params.contextName);
+        }
+        throw new Error('inspectDbContext operation is not supported for this debugger');
+        
+      case 'enableHotReload':
+        if ((dotnetDebugger as any).enableHotReload) {
+          return await (dotnetDebugger as any).enableHotReload(params.enable);
+        }
+        throw new Error('enableHotReload operation is not supported for this debugger');
+        
+      // case 'getPerformanceMetrics':
+      //   return await dotnetDebugger.getPerformanceMetrics(params.metricsType);
+      //   
+      // case 'applyCodeChanges':
+      //   return await dotnetDebugger.applyCodeChanges(params.changes);
+        
+      default:
+        throw new Error(`Unsupported .NET operation: ${operation}`);
+    }
   }
 
   private async executePHPOperation(session: LanguageDebugSession, operation: string, params: any): Promise<any> {
@@ -3150,5 +3311,135 @@ export class LanguageDispatcher {
         message: 'Electron debugging failed - check if Electron app is running with debugging enabled'
       };
     }
+  }
+
+
+
+  private isAspNetCore(projectPath: string): boolean {
+    const fs = require('fs');
+    const path = require('path');
+    
+    if (!projectPath) return false;
+    
+    // Check for ASP.NET Core project file indicators
+    const projectFiles = ['.csproj', '.vbproj', '.fsproj'];
+    
+    for (const ext of projectFiles) {
+      const projectFile = path.join(projectPath, `*${ext}`);
+      const glob = require('glob');
+      const matches = glob.sync(projectFile);
+      
+      for (const match of matches) {
+        if (fs.existsSync(match)) {
+          const content = fs.readFileSync(match, 'utf8');
+          if (content.includes('Microsoft.AspNetCore') || 
+              content.includes('<Project Sdk="Microsoft.NET.Sdk.Web">')) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    // Check for common ASP.NET Core files
+    const aspNetCoreFiles = [
+      'Program.cs',
+      'Startup.cs',
+      'appsettings.json',
+      'appsettings.Development.json'
+    ];
+    
+    return aspNetCoreFiles.some(file => 
+      fs.existsSync(path.join(projectPath, file))
+    );
+  }
+
+  private isBlazor(projectPath: string): boolean {
+    const fs = require('fs');
+    const path = require('path');
+    
+    if (!projectPath) return false;
+    
+    // Check for Blazor project file indicators
+    const projectFiles = ['.csproj', '.vbproj', '.fsproj'];
+    
+    for (const ext of projectFiles) {
+      const projectFile = path.join(projectPath, `*${ext}`);
+      const glob = require('glob');
+      const matches = glob.sync(projectFile);
+      
+      for (const match of matches) {
+        if (fs.existsSync(match)) {
+          const content = fs.readFileSync(match, 'utf8');
+          if (content.includes('Microsoft.AspNetCore.Components') ||
+              content.includes('Microsoft.AspNetCore.Blazor') ||
+              content.includes('<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">')) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    // Check for Blazor-specific files
+    const blazorFiles = [
+      '_Imports.razor',
+      'App.razor',
+      'MainLayout.razor',
+      'wwwroot/index.html'  // For Blazor WASM
+    ];
+    
+    return blazorFiles.some(file => 
+      fs.existsSync(path.join(projectPath, file))
+    );
+  }
+
+  private detectBlazorMode(projectPath: string): 'Server' | 'WebAssembly' {
+    const fs = require('fs');
+    const path = require('path');
+    
+    if (!projectPath) return 'Server';
+    
+    // Check project files for Blazor mode indicators
+    const projectFiles = ['.csproj', '.vbproj', '.fsproj'];
+    
+    for (const ext of projectFiles) {
+      const projectFile = path.join(projectPath, `*${ext}`);
+      const glob = require('glob');
+      const matches = glob.sync(projectFile);
+      
+      for (const match of matches) {
+        if (fs.existsSync(match)) {
+          const content = fs.readFileSync(match, 'utf8');
+          if (content.includes('Microsoft.NET.Sdk.BlazorWebAssembly') ||
+              content.includes('Microsoft.AspNetCore.Blazor.WebAssembly')) {
+            return 'WebAssembly';
+          }
+        }
+      }
+    }
+    
+    // Check for WASM-specific files
+    if (fs.existsSync(path.join(projectPath, 'wwwroot', 'index.html'))) {
+      return 'WebAssembly';
+    }
+    
+    return 'Server';  // Default to Server mode
+  }
+
+  private async getDotNetCapabilities(_dotnetDebugger: DotNetDebugger): Promise<any> {
+    return {
+      supportsConditionalBreakpoints: true,
+      supportsHitConditionalBreakpoints: true,
+      supportsFunctionBreakpoints: true,
+      supportsExceptionBreakpoints: true,
+      supportsStepBack: false,
+      supportsSetVariable: true,
+      supportsRestartFrame: false,
+      supportsGotoTargetsRequest: false,
+      supportsStepInTargetsRequest: true,
+      supportsCompletionsRequest: true,
+      supportsModulesRequest: true,
+      supportsValueFormattingOptions: true,
+      supportsHotReload: true
+    };
   }
 }

@@ -352,6 +352,15 @@ async function main() {
     { name: 'debug_getPHPHttpRequests', description: 'Get PHP HTTP requests with timing information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
     { name: 'debug_getPHPComposerPackages', description: 'Get Composer packages information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
 
+    // .NET/C# Specific Tools
+    { name: 'debug_setDotNetBreakpoint', description: 'Set breakpoint in .NET/C# file', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, column: { type: 'number' }, condition: { type: 'string' }, hitCondition: { type: 'string' }, logMessage: { type: 'string' } }, required: ['sessionId', 'file', 'line'] } },
+    { name: 'debug_getDotNetThreads', description: 'Get .NET application threads', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
+    { name: 'debug_getDotNetStackTrace', description: 'Get .NET stack trace for thread', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, threadId: { type: 'number' }, includeAsync: { type: 'boolean' } }, required: ['sessionId'] } },
+    { name: 'debug_evaluateDotNetExpression', description: 'Evaluate C# expression in debug context', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'number' }, format: { type: 'string', enum: ['json', 'string', 'xml'] } }, required: ['sessionId', 'expression'] } },
+    { name: 'debug_getDotNetPerformanceMetrics', description: 'Get .NET application performance metrics (GC, memory, JIT)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, metricsType: { type: 'string', enum: ['general', 'memory', 'gc', 'jit', 'threads'] } }, required: ['sessionId'] } },
+    { name: 'debug_enableDotNetHotReload', description: 'Enable .NET Hot Reload for live code changes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, enable: { type: 'boolean' } }, required: ['sessionId', 'enable'] } },
+    { name: 'debug_applyDotNetCodeChanges', description: 'Apply hot reload code changes to running .NET application', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, changes: { type: 'array', items: { type: 'object' } } }, required: ['sessionId', 'changes'] } },
+
     // Laravel-specific Tools
     { name: 'debug_getLaravelInfo', description: 'Get Laravel application information (version, routes, config)', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     { name: 'debug_getLaravelRoutes', description: 'Get Laravel routes information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
@@ -3808,6 +3817,233 @@ async function main() {
               error: error instanceof Error ? error.message : String(error),
               sessionId,
               operation: 'getActixRequests'
+            }, null, 2) }] };
+          }
+        }
+
+        // .NET/C# specific tool handlers
+        case 'debug_setDotNetBreakpoint': {
+          const { sessionId, file, line, column, condition, hitCondition, logMessage } = args || {};
+
+          if (!sessionId || !file || !line) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: 'Missing required parameters: sessionId, file, line'
+            }, null, 2) }] };
+          }
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'setBreakpoint', {
+              file,
+              line: Number(line),
+              column: column ? Number(column) : undefined,
+              condition,
+              hitCondition,
+              logMessage
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              breakpointSet: `${file}:${line}`,
+              breakpointId: result.data?.id,
+              verified: result.data?.verified,
+              result: result.data,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'setDotNetBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDotNetThreads': {
+          const { sessionId } = args || {};
+
+          if (!sessionId) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: 'Missing required parameter: sessionId'
+            }, null, 2) }] };
+          }
+
+          try {
+            const threads = await languageDispatcher.executeOperation(sessionId, 'getThreads', {});
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              threadsFound: threads.data?.length || 0,
+              threads: threads.data || [],
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getDotNetThreads'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDotNetStackTrace': {
+          const { sessionId, threadId = 1, includeAsync } = args || {};
+
+          if (!sessionId) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: 'Missing required parameter: sessionId'
+            }, null, 2) }] };
+          }
+
+          try {
+            const stackTrace = await languageDispatcher.executeOperation(sessionId, 'getStackTrace', {
+              threadId: Number(threadId),
+              includeAsync
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              threadId: Number(threadId),
+              stackFrames: stackTrace.data?.stackFrames || stackTrace.data,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getDotNetStackTrace'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_evaluateDotNetExpression': {
+          const { sessionId, expression, frameId, format = 'string' } = args || {};
+
+          if (!sessionId || !expression) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: 'Missing required parameters: sessionId, expression'
+            }, null, 2) }] };
+          }
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'evaluate', {
+              expression,
+              frameId: frameId ? Number(frameId) : undefined,
+              format
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              expression,
+              result: result.data?.result || result.data,
+              variablesReference: result.data?.variablesReference,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'evaluateDotNetExpression'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDotNetPerformanceMetrics': {
+          const { sessionId, metricsType = 'general' } = args || {};
+
+          if (!sessionId) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: 'Missing required parameter: sessionId'
+            }, null, 2) }] };
+          }
+
+          try {
+            const metrics = await languageDispatcher.executeOperation(sessionId, 'getPerformanceMetrics', {
+              metricsType
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              metricsType,
+              metrics: metrics.data,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'getDotNetPerformanceMetrics'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_enableDotNetHotReload': {
+          const { sessionId, enable } = args || {};
+
+          if (!sessionId || enable === undefined) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: 'Missing required parameters: sessionId, enable'
+            }, null, 2) }] };
+          }
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'enableHotReload', {
+              enable: Boolean(enable)
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              hotReloadEnabled: Boolean(enable),
+              result: result.data,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'enableDotNetHotReload'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_applyDotNetCodeChanges': {
+          const { sessionId, changes } = args || {};
+
+          if (!sessionId || !changes || !Array.isArray(changes)) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: 'Missing required parameters: sessionId, changes (array)'
+            }, null, 2) }] };
+          }
+
+          try {
+            const result = await languageDispatcher.executeOperation(sessionId, 'applyCodeChanges', {
+              changes
+            });
+
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: true,
+              changesApplied: changes.length,
+              result: result.data,
+              sessionId
+            }, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              sessionId,
+              operation: 'applyDotNetCodeChanges'
             }, null, 2) }] };
           }
         }
