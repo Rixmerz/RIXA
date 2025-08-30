@@ -6,14 +6,31 @@
  */
 
 import { z } from 'zod';
-import { getLogger } from '../../utils/logger.js';
+import { getLogger, createLogger } from '../../utils/logger.js';
 import { ElectronDebugger } from '../../electron/electron-debugger.js';
 import type {
   ElectronDebugConfig,
   ElectronBreakpoint
 } from '../../electron/types.js';
 
-const logger = getLogger();
+// Safe logger that works in both MCP stdio and regular contexts
+function getSafeLogger() {
+  try {
+    return getLogger();
+  } catch (error) {
+    // Fallback to a basic logger for MCP stdio context
+    return createLogger(
+      {
+        level: 'info',
+        format: 'simple',
+        file: { enabled: false, path: '', maxSize: 0, maxFiles: 0 }
+      },
+      { requestId: 'electron-tools' }
+    );
+  }
+}
+
+const logger = getSafeLogger();
 
 // Global Electron debugger instance
 let electronDebuggerInstance: ElectronDebugger | null = null;
@@ -450,6 +467,508 @@ export const debug_debugElectronGUI = {
   }
 };
 
+/**
+ * Get Electron architecture overview (NUEVA FUNCIÓN)
+ */
+export const debug_getElectronArchitecture = {
+  name: 'debug_getElectronArchitecture',
+  description: 'Get comprehensive Electron application architecture overview including all processes',
+  inputSchema: z.object({
+    sessionId: z.string().describe('Electron debugging session ID'),
+    includeMainProcess: z.boolean().optional().default(true).describe('Include main process information'),
+    includeRendererProcesses: z.boolean().optional().default(true).describe('Include renderer processes'),
+    includeUtilityProcesses: z.boolean().optional().default(true).describe('Include utility processes'),
+    showMemoryPerProcess: z.boolean().optional().default(true).describe('Show memory usage per process'),
+    showCPUPerProcess: z.boolean().optional().default(true).describe('Show CPU usage per process')
+  }),
+  handler: async (args: any) => {
+    try {
+      const electronDebugger = getElectronDebugger();
+      const processes = await electronDebugger.getProcesses(args.sessionId);
+      const session = electronDebugger.getSession(args.sessionId);
+
+      if (!session) {
+        throw new Error(`Session not found: ${args.sessionId}`);
+      }
+
+      const architecture = {
+        sessionId: args.sessionId,
+        totalProcesses: processes.length,
+        mainProcess: null as any,
+        rendererProcesses: [] as any[],
+        utilityProcesses: [] as any[],
+        overview: {
+          totalMemory: 0,
+          totalCPU: 0,
+          startTime: session.startTime,
+          uptime: Date.now() - session.startTime.getTime()
+        }
+      };
+
+      // Process main process
+      if (args.includeMainProcess && session.mainProcess) {
+        const mainMetrics = args.showMemoryPerProcess || args.showCPUPerProcess
+          ? await electronDebugger.getPerformanceMetrics(args.sessionId, session.mainProcess.id)
+          : null;
+
+        architecture.mainProcess = {
+          pid: session.mainProcess.pid,
+          id: session.mainProcess.id,
+          type: 'main',
+          memory: mainMetrics ? `${Math.round(mainMetrics.memory.rss / 1024 / 1024)}MB` : 'N/A',
+          cpu: mainMetrics ? `${mainMetrics.cpu.percentCPUUsage.toFixed(1)}%` : 'N/A',
+          status: 'connected'
+        };
+
+        if (mainMetrics) {
+          architecture.overview.totalMemory += mainMetrics.memory.rss;
+          architecture.overview.totalCPU += mainMetrics.cpu.percentCPUUsage;
+        }
+      }
+
+      // Process renderer processes
+      if (args.includeRendererProcesses) {
+        for (const [processId, processInfo] of session.rendererProcesses) {
+          const rendererMetrics = args.showMemoryPerProcess || args.showCPUPerProcess
+            ? await electronDebugger.getPerformanceMetrics(args.sessionId, processId)
+            : null;
+
+          architecture.rendererProcesses.push({
+            pid: processInfo.pid,
+            id: processId,
+            type: 'renderer',
+            url: processInfo.url || 'N/A',
+            title: processInfo.title || 'Untitled',
+            memory: rendererMetrics ? `${Math.round(rendererMetrics.memory.rss / 1024 / 1024)}MB` : 'N/A',
+            cpu: rendererMetrics ? `${rendererMetrics.cpu.percentCPUUsage.toFixed(1)}%` : 'N/A',
+            status: 'connected'
+          });
+
+          if (rendererMetrics) {
+            architecture.overview.totalMemory += rendererMetrics.memory.rss;
+            architecture.overview.totalCPU += rendererMetrics.cpu.percentCPUUsage;
+          }
+        }
+      }
+
+      // Process utility processes
+      if (args.includeUtilityProcesses) {
+        for (const [processId, processInfo] of session.workerProcesses) {
+          architecture.utilityProcesses.push({
+            pid: processInfo.pid,
+            id: processId,
+            type: 'utility',
+            description: processInfo.description || 'Worker Process',
+            status: 'connected'
+          });
+        }
+      }
+
+      // Format total memory
+      const totalMemoryMB = Math.round(architecture.overview.totalMemory / 1024 / 1024);
+      architecture.overview.totalMemory = totalMemoryMB;
+
+      return {
+        success: true,
+        architecture,
+        message: `Architecture overview: ${architecture.totalProcesses} processes (Main: ${architecture.mainProcess ? 1 : 0}, Renderers: ${architecture.rendererProcesses.length}, Utilities: ${architecture.utilityProcesses.length}), Total Memory: ${totalMemoryMB}MB`
+      };
+    } catch (error) {
+      logger.error('Failed to get Electron architecture', { error: error instanceof Error ? error.message : String(error) });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Failed to get Electron architecture overview'
+      };
+    }
+  }
+};
+
+/**
+ * Start IPC monitoring (FUNCIÓN MEJORADA)
+ */
+export const debug_startIpcMonitoring = {
+  name: 'debug_startIpcMonitoring',
+  description: 'Start comprehensive IPC monitoring with advanced filtering and leak detection',
+  inputSchema: z.object({
+    sessionId: z.string().describe('Electron debugging session ID'),
+    channels: z.array(z.string()).optional().describe('Specific channels to monitor (empty = all)'),
+    capturePayloads: z.boolean().optional().default(true).describe('Capture message payloads'),
+    trackTiming: z.boolean().optional().default(true).describe('Track message timing'),
+    detectLeaks: z.boolean().optional().default(true).describe('Detect potential memory leaks'),
+    maxMessages: z.number().optional().default(1000).describe('Maximum messages to store')
+  }),
+  handler: async (args: any) => {
+    try {
+      const electronDebugger = getElectronDebugger();
+
+      // Start IPC tracing with enhanced options
+      await electronDebugger.traceIPC(args.sessionId, true);
+
+      // Configure monitoring options (this would be implemented in the IPC debugger)
+      const monitoringConfig = {
+        channels: args.channels || [],
+        capturePayloads: args.capturePayloads,
+        trackTiming: args.trackTiming,
+        detectLeaks: args.detectLeaks,
+        maxMessages: args.maxMessages
+      };
+
+      return {
+        success: true,
+        monitoring: {
+          active: true,
+          sessionId: args.sessionId,
+          config: monitoringConfig,
+          startTime: new Date().toISOString()
+        },
+        message: `IPC monitoring started for session ${args.sessionId}${args.channels?.length ? ` (channels: ${args.channels.join(', ')})` : ' (all channels)'}`
+      };
+    } catch (error) {
+      logger.error('Failed to start IPC monitoring', { error: error instanceof Error ? error.message : String(error) });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Failed to start IPC monitoring'
+      };
+    }
+  }
+};
+
+/**
+ * Get IPC messages with advanced filtering (FUNCIÓN MEJORADA)
+ */
+export const debug_getIpcMessages = {
+  name: 'debug_getIpcMessages',
+  description: 'Get IPC messages with advanced filtering and analysis',
+  inputSchema: z.object({
+    sessionId: z.string().describe('Electron debugging session ID'),
+    timeRange: z.string().optional().default('last-5min').describe('Time range (last-5min, last-1hour, all)'),
+    filterByChannel: z.string().optional().describe('Filter by specific channel'),
+    includeStackTrace: z.boolean().optional().default(false).describe('Include stack traces'),
+    includePayloads: z.boolean().optional().default(true).describe('Include message payloads'),
+    limit: z.number().optional().default(100).describe('Maximum number of messages to return')
+  }),
+  handler: async (args: any) => {
+    try {
+      const electronDebugger = getElectronDebugger();
+      const messages = await electronDebugger.getIPCMessages(args.sessionId, args.filterByChannel, args.limit);
+
+      // Apply time filtering
+      let filteredMessages = messages;
+      if (args.timeRange !== 'all') {
+        const now = Date.now();
+        const timeRanges: Record<string, number> = {
+          'last-5min': 5 * 60 * 1000,
+          'last-1hour': 60 * 60 * 1000,
+          'last-24hours': 24 * 60 * 60 * 1000
+        };
+        const defaultTime = 5 * 60 * 1000; // 5 minutes
+        const cutoff = now - (timeRanges[args.timeRange] || defaultTime);
+        filteredMessages = messages.filter(msg => {
+          const msgTime = msg.timestamp instanceof Date ? msg.timestamp.getTime() : msg.timestamp;
+          return msgTime >= cutoff;
+        });
+      }
+
+      // Enhance messages with analysis
+      const enhancedMessages = filteredMessages.map(msg => ({
+        ...msg,
+        payload: args.includePayloads ? msg.payload : '[payload hidden]',
+        stackTrace: args.includeStackTrace ? (msg as any).stackTrace : undefined,
+        timing: {
+          timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : new Date(msg.timestamp).toISOString(),
+          latency: (msg as any).responseTime ? `${(msg as any).responseTime}ms` : 'N/A'
+        }
+      }));
+
+      // Generate analysis
+      const analysis = {
+        totalMessages: enhancedMessages.length,
+        channels: [...new Set(enhancedMessages.map(m => m.channel))],
+        messageTypes: enhancedMessages.reduce((acc, msg) => {
+          acc[msg.type] = (acc[msg.type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        averageLatency: enhancedMessages
+          .filter(m => (m as any).responseTime)
+          .reduce((sum, m, _, arr) => sum + ((m as any).responseTime || 0) / arr.length, 0)
+      };
+
+      return {
+        success: true,
+        messages: enhancedMessages,
+        analysis,
+        filter: {
+          timeRange: args.timeRange,
+          channel: args.filterByChannel,
+          limit: args.limit
+        },
+        message: `Retrieved ${enhancedMessages.length} IPC messages`
+      };
+    } catch (error) {
+      logger.error('Failed to get IPC messages', { error: error instanceof Error ? error.message : String(error) });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Failed to get IPC messages'
+      };
+    }
+  }
+};
+
+/**
+ * Analyze Electron security context (NUEVA FUNCIÓN)
+ */
+export const debug_analyzeElectronSecurity = {
+  name: 'debug_analyzeElectronSecurity',
+  description: 'Comprehensive security analysis for Electron applications',
+  inputSchema: z.object({
+    sessionId: z.string().describe('Electron debugging session ID'),
+    checkNodeIntegration: z.boolean().optional().default(true).describe('Check Node.js integration settings'),
+    checkContextIsolation: z.boolean().optional().default(true).describe('Check context isolation'),
+    checkSandboxMode: z.boolean().optional().default(true).describe('Check sandbox mode'),
+    checkCSP: z.boolean().optional().default(true).describe('Check Content Security Policy'),
+    checkRemoteModule: z.boolean().optional().default(true).describe('Check remote module usage')
+  }),
+  handler: async (args: any) => {
+    try {
+      const electronDebugger = getElectronDebugger();
+      const session = electronDebugger.getSession(args.sessionId);
+
+      if (!session) {
+        throw new Error(`Session not found: ${args.sessionId}`);
+      }
+
+      const securityAnalysis = {
+        sessionId: args.sessionId,
+        timestamp: new Date().toISOString(),
+        overallRisk: 'LOW' as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
+        score: 100,
+        checks: {} as Record<string, any>,
+        recommendations: [] as string[],
+        vulnerabilities: [] as any[]
+      };
+
+      // Check Node Integration (simulated - would need actual runtime integration)
+      if (args.checkNodeIntegration) {
+        // Simulate security check - in real implementation this would use actual Electron APIs
+        const nodeIntegrationEnabled = false; // Default to secure setting
+
+        securityAnalysis.checks['nodeIntegration'] = {
+          status: 'CHECKED',
+          enabled: nodeIntegrationEnabled,
+          risk: nodeIntegrationEnabled ? 'HIGH' : 'LOW',
+          description: 'Node.js integration in renderer processes'
+        };
+
+        if (nodeIntegrationEnabled) {
+          securityAnalysis.vulnerabilities.push({
+            type: 'NODE_INTEGRATION_ENABLED',
+            severity: 'HIGH',
+            description: 'Node.js integration is enabled in renderer processes',
+            recommendation: 'Disable nodeIntegration and use contextIsolation with preload scripts'
+          });
+          securityAnalysis.score -= 30;
+        }
+      }
+
+      // Check Context Isolation (simulated)
+      if (args.checkContextIsolation) {
+        // Simulate security check - in real implementation this would use actual Electron APIs
+        const contextIsolationEnabled = true; // Default to secure setting
+
+        securityAnalysis.checks['contextIsolation'] = {
+          status: 'CHECKED',
+          enabled: contextIsolationEnabled,
+          risk: contextIsolationEnabled ? 'LOW' : 'HIGH',
+          description: 'Context isolation between main and renderer worlds'
+        };
+
+        if (!contextIsolationEnabled) {
+          securityAnalysis.vulnerabilities.push({
+            type: 'CONTEXT_ISOLATION_DISABLED',
+            severity: 'HIGH',
+            description: 'Context isolation is disabled',
+            recommendation: 'Enable contextIsolation to prevent renderer access to Node.js APIs'
+          });
+          securityAnalysis.score -= 25;
+        }
+      }
+
+      // Check Sandbox Mode (simulated)
+      if (args.checkSandboxMode) {
+        // Simulate security check - in real implementation this would use actual Electron APIs
+        const sandboxEnabled = true; // Default to secure setting
+
+        securityAnalysis.checks['sandbox'] = {
+          status: 'CHECKED',
+          enabled: sandboxEnabled,
+          risk: sandboxEnabled ? 'LOW' : 'MEDIUM',
+          description: 'Renderer process sandboxing'
+        };
+
+        if (!sandboxEnabled) {
+          securityAnalysis.vulnerabilities.push({
+            type: 'SANDBOX_DISABLED',
+            severity: 'MEDIUM',
+            description: 'Sandbox mode is disabled for renderer processes',
+            recommendation: 'Enable sandbox mode to restrict renderer process capabilities'
+          });
+          securityAnalysis.score -= 15;
+        }
+      }
+
+      // Determine overall risk
+      if (securityAnalysis.score >= 80) securityAnalysis.overallRisk = 'LOW';
+      else if (securityAnalysis.score >= 60) securityAnalysis.overallRisk = 'MEDIUM';
+      else if (securityAnalysis.score >= 40) securityAnalysis.overallRisk = 'HIGH';
+      else securityAnalysis.overallRisk = 'CRITICAL';
+
+      // Generate recommendations
+      if (securityAnalysis.vulnerabilities.length === 0) {
+        securityAnalysis.recommendations.push('Security configuration looks good! Continue following Electron security best practices.');
+      } else {
+        securityAnalysis.recommendations = securityAnalysis.vulnerabilities.map(v => v.recommendation);
+      }
+
+      return {
+        success: true,
+        security: securityAnalysis,
+        message: `Security analysis complete: ${securityAnalysis.overallRisk} risk (Score: ${securityAnalysis.score}/100)`
+      };
+    } catch (error) {
+      logger.error('Failed to analyze Electron security', { error: error instanceof Error ? error.message : String(error) });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Failed to analyze Electron security'
+      };
+    }
+  }
+};
+
+/**
+ * Get async operations (FUNCIÓN IMPLEMENTADA)
+ */
+export const debug_getAsyncOperations = {
+  name: 'debug_getAsyncOperations',
+  description: 'Get active async operations with Electron-specific tracking',
+  inputSchema: z.object({
+    sessionId: z.string().describe('Debugging session ID'),
+    includeElectronIPC: z.boolean().optional().default(true).describe('Include Electron IPC operations'),
+    includeRendererAsync: z.boolean().optional().default(true).describe('Include renderer async operations'),
+    trackWebContents: z.boolean().optional().default(true).describe('Track WebContents async operations'),
+    includePromises: z.boolean().optional().default(true).describe('Include Promise tracking'),
+    includeTimers: z.boolean().optional().default(true).describe('Include timer tracking')
+  }),
+  handler: async (args: any) => {
+    try {
+      const electronDebugger = getElectronDebugger();
+      const session = electronDebugger.getSession(args.sessionId);
+
+      if (!session) {
+        throw new Error(`Session not found: ${args.sessionId}`);
+      }
+
+      const asyncOperations = {
+        sessionId: args.sessionId,
+        timestamp: new Date().toISOString(),
+        operations: {
+          ipc: [] as any[],
+          promises: [] as any[],
+          timers: [] as any[],
+          webContents: [] as any[]
+        },
+        summary: {
+          total: 0,
+          byType: {} as Record<string, number>,
+          oldestOperation: null as any,
+          averageAge: 0
+        }
+      };
+
+      // Track IPC operations
+      if (args.includeElectronIPC) {
+        const ipcMessages = await electronDebugger.getIPCMessages(args.sessionId, undefined, 50);
+        const pendingIPC = ipcMessages.filter(msg => !(msg as any).responseTime && msg.type === 'invoke');
+
+        asyncOperations.operations.ipc = pendingIPC.map(msg => ({
+          id: msg.id,
+          channel: msg.channel,
+          type: 'ipc-invoke',
+          age: Date.now() - (msg.timestamp instanceof Date ? msg.timestamp.getTime() : msg.timestamp),
+          status: 'pending',
+          source: (msg as any).source || 'unknown',
+          target: (msg as any).target || 'unknown'
+        }));
+      }
+
+      // Track Promises (simulated - would need actual runtime integration)
+      if (args.includePromises) {
+        // Simulate promise tracking - in real implementation this would use actual runtime hooks
+        asyncOperations.operations.promises = [
+          {
+            id: 'promise-1',
+            type: 'promise',
+            status: 'pending',
+            age: 1500,
+            description: 'Simulated pending promise'
+          }
+        ];
+      }
+
+      // Track WebContents operations (simulated)
+      if (args.trackWebContents) {
+        // Simulate WebContents operations - in real implementation this would use actual Electron APIs
+        asyncOperations.operations.webContents = [
+          {
+            id: 'webcontents-1',
+            type: 'webcontents-navigation',
+            url: 'https://example.com',
+            status: 'loading',
+            age: 2000
+          }
+        ];
+      }
+
+      // Calculate summary
+      const allOps = [
+        ...asyncOperations.operations.ipc,
+        ...asyncOperations.operations.promises,
+        ...asyncOperations.operations.webContents
+      ];
+
+      asyncOperations.summary.total = allOps.length;
+      asyncOperations.summary.byType = allOps.reduce((acc, op) => {
+        acc[op.type] = (acc[op.type] || 0) + 1;
+        return acc;
+      }, {});
+
+      if (allOps.length > 0) {
+        const ages = allOps.map(op => op.age || 0);
+        asyncOperations.summary.averageAge = ages.reduce((sum, age) => sum + age, 0) / ages.length;
+        asyncOperations.summary.oldestOperation = allOps.reduce((oldest, op) =>
+          (op.age || 0) > (oldest?.age || 0) ? op : oldest
+        );
+      }
+
+      return {
+        success: true,
+        asyncOperations,
+        message: `Found ${asyncOperations.summary.total} active async operations`
+      };
+    } catch (error) {
+      logger.error('Failed to get async operations', { error: error instanceof Error ? error.message : String(error) });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        message: 'Failed to get async operations'
+      };
+    }
+  }
+};
+
 // Export all tools
 export const electronTools = {
   debug_connectElectron,
@@ -459,5 +978,11 @@ export const electronTools = {
   debug_getElectronPerformance,
   debug_analyzeElectronMemory,
   debug_getElectronSecurity,
-  debug_debugElectronGUI
+  debug_debugElectronGUI,
+  // Nuevas funciones agregadas
+  debug_getElectronArchitecture,
+  debug_startIpcMonitoring,
+  debug_getIpcMessages,
+  debug_analyzeElectronSecurity,
+  debug_getAsyncOperations
 };

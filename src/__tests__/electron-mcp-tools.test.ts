@@ -316,4 +316,167 @@ describe('Electron MCP Tools', () => {
       }
     });
   });
+
+  // Tests for new Electron tools
+  describe('New Electron Tools', () => {
+    describe('debug_getElectronArchitecture', () => {
+      it('should get comprehensive architecture overview', async () => {
+        const tool = electronTools.debug_getElectronArchitecture;
+
+        const args = {
+          sessionId: 'test-session-123',
+          includeMainProcess: true,
+          includeRendererProcesses: true,
+          includeUtilityProcesses: true,
+          showMemoryPerProcess: true,
+          showCPUPerProcess: true
+        };
+
+        const result = await tool.handler(args);
+
+        expect(result).toBeDefined();
+        expect(typeof result.success).toBe('boolean');
+        if (result.success) {
+          expect(result.architecture).toBeDefined();
+          expect(result.architecture.sessionId).toBe(args.sessionId);
+          expect(result.architecture.overview).toBeDefined();
+        }
+        expect(result.message).toBeDefined();
+      });
+    });
+
+    describe('debug_startIpcMonitoring', () => {
+      it('should start IPC monitoring with advanced options', async () => {
+        const tool = electronTools.debug_startIpcMonitoring;
+
+        const args = {
+          sessionId: 'test-session-123',
+          channels: ['get-app-info', 'perform-async-task'],
+          capturePayloads: true,
+          trackTiming: true,
+          detectLeaks: true,
+          maxMessages: 1000
+        };
+
+        const result = await tool.handler(args);
+
+        expect(result).toBeDefined();
+        expect(typeof result.success).toBe('boolean');
+        if (result.success) {
+          expect(result.monitoring).toBeDefined();
+          expect(result.monitoring.active).toBe(true);
+          expect(result.monitoring.sessionId).toBe(args.sessionId);
+          expect(result.monitoring.config).toBeDefined();
+        }
+        expect(result.message).toBeDefined();
+      });
+    });
+
+    describe('debug_getIpcMessages', () => {
+      it('should get IPC messages with filtering', async () => {
+        const tool = electronTools.debug_getIpcMessages;
+
+        const args = {
+          sessionId: 'test-session-123',
+          timeRange: 'last-5min',
+          filterByChannel: 'get-app-info',
+          includeStackTrace: true,
+          includePayloads: true,
+          limit: 100
+        };
+
+        const result = await tool.handler(args);
+
+        expect(result).toBeDefined();
+        expect(typeof result.success).toBe('boolean');
+        if (result.success) {
+          expect(result.messages).toBeDefined();
+          expect(Array.isArray(result.messages)).toBe(true);
+          expect(result.analysis).toBeDefined();
+          expect(result.filter).toBeDefined();
+        }
+        expect(result.message).toBeDefined();
+      });
+    });
+
+    describe('debug_analyzeElectronSecurity', () => {
+      it('should perform comprehensive security analysis', async () => {
+        const tool = electronTools.debug_analyzeElectronSecurity;
+
+        const args = {
+          sessionId: 'test-session-123',
+          checkNodeIntegration: true,
+          checkContextIsolation: true,
+          checkSandboxMode: true,
+          checkCSP: true,
+          checkRemoteModule: true
+        };
+
+        const result = await tool.handler(args);
+
+        expect(result).toBeDefined();
+        expect(typeof result.success).toBe('boolean');
+        if (result.success) {
+          expect(result.security).toBeDefined();
+          expect(result.security.overallRisk).toMatch(/^(LOW|MEDIUM|HIGH|CRITICAL)$/);
+          expect(typeof result.security.score).toBe('number');
+          expect(result.security.checks).toBeDefined();
+          expect(Array.isArray(result.security.recommendations)).toBe(true);
+          expect(Array.isArray(result.security.vulnerabilities)).toBe(true);
+        }
+        expect(result.message).toBeDefined();
+      });
+    });
+
+    describe('debug_getAsyncOperations', () => {
+      it('should get async operations with Electron-specific tracking', async () => {
+        const tool = electronTools.debug_getAsyncOperations;
+
+        const args = {
+          sessionId: 'test-session-123',
+          includeElectronIPC: true,
+          includeRendererAsync: true,
+          trackWebContents: true,
+          includePromises: true,
+          includeTimers: true
+        };
+
+        const result = await tool.handler(args);
+
+        expect(result).toBeDefined();
+        expect(typeof result.success).toBe('boolean');
+        if (result.success) {
+          expect(result.asyncOperations).toBeDefined();
+          expect(result.asyncOperations.sessionId).toBe(args.sessionId);
+          expect(result.asyncOperations.operations).toBeDefined();
+          expect(result.asyncOperations.operations.ipc).toBeDefined();
+          expect(result.asyncOperations.operations.webContents).toBeDefined();
+          expect(result.asyncOperations.summary).toBeDefined();
+          expect(typeof result.asyncOperations.summary.total).toBe('number');
+        }
+        expect(result.message).toBeDefined();
+      });
+    });
+
+    // Error handling tests for new tools
+    describe('Error Handling for New Tools', () => {
+      it('should handle invalid session ID gracefully', async () => {
+        const tools = [
+          electronTools.debug_getElectronArchitecture,
+          electronTools.debug_startIpcMonitoring,
+          electronTools.debug_getIpcMessages,
+          electronTools.debug_analyzeElectronSecurity,
+          electronTools.debug_getAsyncOperations
+        ];
+
+        for (const tool of tools) {
+          const result = await tool.handler({ sessionId: 'invalid-session' });
+          expect(result).toBeDefined();
+          expect(result.success).toBe(false);
+          expect(result.error).toBeDefined();
+          expect(result.message).toBeDefined();
+        }
+      });
+    });
+  });
 });

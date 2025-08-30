@@ -406,7 +406,7 @@ async function main() {
     { name: 'debug_startActixRequestTracking', description: 'Start tracking Actix HTTP requests', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     { name: 'debug_getActixRequests', description: 'Get Actix HTTP requests with timing and middleware information', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, limit: { type: 'number' } }, required: ['sessionId'] } },
 
-    // Electron debugging tools (8 tools)
+    // Electron debugging tools (13 tools - EXPANDIDO)
     { name: 'debug_connectElectron', description: 'Connect to an Electron application for debugging', inputSchema: { type: 'object', properties: { host: { type: 'string' }, mainPort: { type: 'number' }, rendererPort: { type: 'number' }, timeout: { type: 'number' }, autoDiscover: { type: 'boolean' }, enableIpcDebugging: { type: 'boolean' }, enablePerformanceProfiling: { type: 'boolean' }, enableSecurityDebugging: { type: 'boolean' }, enableGUIDebugging: { type: 'boolean' }, projectPath: { type: 'string' }, electronPath: { type: 'string' }, appPath: { type: 'string' } } } },
     { name: 'debug_getElectronProcesses', description: 'Get all Electron processes for a debugging session', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] } },
     { name: 'debug_setElectronBreakpoint', description: 'Set a breakpoint in an Electron process', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processType: { type: 'string', enum: ['main', 'renderer', 'worker'] }, processId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, condition: { type: 'string' } }, required: ['sessionId', 'processType', 'file', 'line'] } },
@@ -414,7 +414,22 @@ async function main() {
     { name: 'debug_getElectronPerformance', description: 'Get performance metrics for Electron processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processId: { type: 'string' } }, required: ['sessionId'] } },
     { name: 'debug_analyzeElectronMemory', description: 'Analyze memory usage and detect potential leaks in Electron processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processId: { type: 'string' }, duration: { type: 'number' } }, required: ['sessionId'] } },
     { name: 'debug_getElectronSecurity', description: 'Get security context and analyze security configuration for Electron processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, processId: { type: 'string' } }, required: ['sessionId'] } },
-    { name: 'debug_debugElectronGUI', description: 'Debug GUI elements in Electron renderer processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, action: { type: 'string', enum: ['inspect', 'simulate', 'list'] }, elementId: { type: 'string' }, eventType: { type: 'string' }, eventOptions: { type: 'object' } }, required: ['sessionId', 'action'] } }
+    { name: 'debug_debugElectronGUI', description: 'Debug GUI elements in Electron renderer processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, action: { type: 'string', enum: ['inspect', 'simulate', 'list'] }, elementId: { type: 'string' }, eventType: { type: 'string' }, eventOptions: { type: 'object' } }, required: ['sessionId', 'action'] } },
+    // Nuevas herramientas Electron agregadas
+    { name: 'debug_getElectronArchitecture', description: 'Get comprehensive Electron application architecture overview including all processes', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeMainProcess: { type: 'boolean' }, includeRendererProcesses: { type: 'boolean' }, includeUtilityProcesses: { type: 'boolean' }, showMemoryPerProcess: { type: 'boolean' }, showCPUPerProcess: { type: 'boolean' } }, required: ['sessionId'] } },
+    { name: 'debug_startIpcMonitoring', description: 'Start comprehensive IPC monitoring with advanced filtering and leak detection', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, channels: { type: 'array', items: { type: 'string' } }, capturePayloads: { type: 'boolean' }, trackTiming: { type: 'boolean' }, detectLeaks: { type: 'boolean' }, maxMessages: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_getIpcMessages', description: 'Get IPC messages with advanced filtering and analysis', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, timeRange: { type: 'string' }, filterByChannel: { type: 'string' }, includeStackTrace: { type: 'boolean' }, includePayloads: { type: 'boolean' }, limit: { type: 'number' } }, required: ['sessionId'] } },
+    { name: 'debug_analyzeElectronSecurity', description: 'Comprehensive security analysis for Electron applications', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, checkNodeIntegration: { type: 'boolean' }, checkContextIsolation: { type: 'boolean' }, checkSandboxMode: { type: 'boolean' }, checkCSP: { type: 'boolean' }, checkRemoteModule: { type: 'boolean' } }, required: ['sessionId'] } },
+    { name: 'debug_getAsyncOperations', description: 'Get active async operations with Electron-specific tracking', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeElectronIPC: { type: 'boolean' }, includeRendererAsync: { type: 'boolean' }, trackWebContents: { type: 'boolean' }, includePromises: { type: 'boolean' }, includeTimers: { type: 'boolean' } }, required: ['sessionId'] } },
+
+    // .NET/C# debugging tools (7 tools)
+    { name: 'debug_connectDotNet', description: 'Connect to a .NET application for debugging with automatic version and framework detection', inputSchema: { type: 'object', properties: { processId: { type: 'number' }, processName: { type: 'string' }, host: { type: 'string' }, port: { type: 'number' }, dotnetVersion: { type: 'string', enum: ['netframework4.0', 'netframework4.5', 'netframework4.6', 'netframework4.7', 'netframework4.8', 'netcore3.1', 'net5.0', 'net6.0', 'net7.0', 'net8.0', 'net9.0'] }, framework: { type: 'string', enum: ['aspnetcore', 'wpf', 'winforms', 'blazor-server', 'blazor-wasm', 'maui', 'unity', 'console', 'library'] }, runtime: { type: 'string', enum: ['framework', 'core', 'mono'] }, projectPath: { type: 'string' }, assemblyPath: { type: 'string' }, symbolsPath: { type: 'string' }, enableHotReload: { type: 'boolean' }, enableAsyncDebugging: { type: 'boolean' }, enableLinqDebugging: { type: 'boolean' }, enableExceptionBreaking: { type: 'boolean' }, timeout: { type: 'number' }, autoAttach: { type: 'boolean' }, debuggerType: { type: 'string', enum: ['vsdbg', 'netcoredbg', 'mono'] } } } },
+    { name: 'debug_getDotNetProcesses', description: 'Get all .NET processes available for debugging with framework and version detection', inputSchema: { type: 'object', properties: { includeSystemProcesses: { type: 'boolean' }, filterByFramework: { type: 'string', enum: ['aspnetcore', 'wpf', 'winforms', 'blazor-server', 'blazor-wasm', 'maui', 'unity', 'console', 'library'] }, filterByVersion: { type: 'string', enum: ['netframework4.0', 'netframework4.5', 'netframework4.6', 'netframework4.7', 'netframework4.8', 'netcore3.1', 'net5.0', 'net6.0', 'net7.0', 'net8.0', 'net9.0'] }, includeDebuggableOnly: { type: 'boolean' } } } },
+    { name: 'debug_inspectDotNetObject', description: 'Inspect a .NET object with deep analysis of properties, fields, and methods', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, objectId: { type: 'string' }, includePrivateMembers: { type: 'boolean' }, includeStaticMembers: { type: 'boolean' }, includeInheritedMembers: { type: 'boolean' }, maxDepth: { type: 'number' }, evaluateProperties: { type: 'boolean' } }, required: ['sessionId', 'objectId'] } },
+    { name: 'debug_evaluateCSharpExpression', description: 'Evaluate C# expressions with support for async/await, LINQ, and complex objects', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, expression: { type: 'string' }, frameId: { type: 'string' }, timeout: { type: 'number' }, allowSideEffects: { type: 'boolean' }, returnFullObject: { type: 'boolean' }, enableLinqDebugging: { type: 'boolean' }, enableAsyncEvaluation: { type: 'boolean' } }, required: ['sessionId', 'expression'] } },
+    { name: 'debug_getDotNetAssemblies', description: 'Get detailed information about loaded .NET assemblies including types and metadata', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeSystemAssemblies: { type: 'boolean' }, includeGACAssemblies: { type: 'boolean' }, includeDynamicAssemblies: { type: 'boolean' }, includeTypeInformation: { type: 'boolean' }, filterByName: { type: 'string' }, sortBy: { type: 'string', enum: ['name', 'version', 'location', 'size'] } }, required: ['sessionId'] } },
+    { name: 'debug_setDotNetBreakpoint', description: 'Set advanced breakpoints in .NET code with support for async methods, LINQ, and conditional breaking', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, column: { type: 'number' }, condition: { type: 'string' }, hitCondition: { type: 'string' }, logMessage: { type: 'string' }, enabled: { type: 'boolean' }, breakOnAsyncException: { type: 'boolean' }, breakOnLinqExecution: { type: 'boolean' }, assembly: { type: 'string' }, method: { type: 'string' } }, required: ['sessionId', 'file', 'line'] } },
+    { name: 'debug_enableDotNetHotReload', description: 'Enable and configure hot reload for supported .NET applications', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, watchPaths: { type: 'array', items: { type: 'string' } }, excludePatterns: { type: 'array', items: { type: 'string' } }, enableAutoReload: { type: 'boolean' }, reloadTimeout: { type: 'number' }, enableVerboseLogging: { type: 'boolean' } }, required: ['sessionId'] } }
   ];
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -4010,6 +4025,176 @@ async function main() {
               success: false,
               error: error instanceof Error ? error.message : String(error),
               operation: 'debugElectronGUI'
+            }, null, 2) }] };
+          }
+        }
+
+        // Nuevas herramientas Electron agregadas
+        case 'debug_getElectronArchitecture': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_getElectronArchitecture.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getElectronArchitecture'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_startIpcMonitoring': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_startIpcMonitoring.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'startIpcMonitoring'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getIpcMessages': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_getIpcMessages.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getIpcMessages'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_analyzeElectronSecurity': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_analyzeElectronSecurity.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'analyzeElectronSecurity'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getAsyncOperations': {
+          try {
+            const { electronTools } = await import('./mcp/tools/electron-tools.js');
+            const result = await electronTools.debug_getAsyncOperations.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getAsyncOperations'
+            }, null, 2) }] };
+          }
+        }
+
+        // .NET/C# debugging tools
+        case 'debug_connectDotNet': {
+          try {
+            const { dotnetTools } = await import('./mcp/tools/dotnet-tools.js');
+            const result = await dotnetTools.debug_connectDotNet.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'connectDotNet'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDotNetProcesses': {
+          try {
+            const { dotnetTools } = await import('./mcp/tools/dotnet-tools.js');
+            const result = await dotnetTools.debug_getDotNetProcesses.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getDotNetProcesses'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_inspectDotNetObject': {
+          try {
+            const { dotnetTools } = await import('./mcp/tools/dotnet-tools.js');
+            const result = await dotnetTools.debug_inspectDotNetObject.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'inspectDotNetObject'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_evaluateCSharpExpression': {
+          try {
+            const { dotnetTools } = await import('./mcp/tools/dotnet-tools.js');
+            const result = await dotnetTools.debug_evaluateCSharpExpression.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'evaluateCSharpExpression'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_getDotNetAssemblies': {
+          try {
+            const { dotnetTools } = await import('./mcp/tools/dotnet-tools.js');
+            const result = await dotnetTools.debug_getDotNetAssemblies.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'getDotNetAssemblies'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_setDotNetBreakpoint': {
+          try {
+            const { dotnetTools } = await import('./mcp/tools/dotnet-tools.js');
+            const result = await dotnetTools.debug_setDotNetBreakpoint.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'setDotNetBreakpoint'
+            }, null, 2) }] };
+          }
+        }
+
+        case 'debug_enableDotNetHotReload': {
+          try {
+            const { dotnetTools } = await import('./mcp/tools/dotnet-tools.js');
+            const result = await dotnetTools.debug_enableDotNetHotReload.handler(args);
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return { content: [{ type: 'text', text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              operation: 'enableDotNetHotReload'
             }, null, 2) }] };
           }
         }
