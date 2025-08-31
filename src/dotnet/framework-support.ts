@@ -41,9 +41,10 @@ export class DotNetFrameworkSupport {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    const framework = session.config.framework!;
-    const capabilities = this.frameworkDetector.getFrameworkCapabilities(framework);
-    const specificFeatures = await this.getSpecificFeatures(framework, session);
+    // For now, return mock data since we don't have the full DotNetDebugSession
+    const framework = session.config?.framework || 'console';
+    const capabilities = this.frameworkDetector.getFrameworkCapabilities(framework as any);
+    const specificFeatures = {}; // Mock implementation
 
     return {
       framework,

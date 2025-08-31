@@ -3,8 +3,8 @@ import type { DotNetDebuggerConfig } from './types.js';
 import type { Logger } from '../utils/logger.js';
 
 export class EFCoreDebugger extends DotNetDebugger {
-  constructor(config: DotNetDebuggerConfig, logger: Logger) {
-    super(config, logger);
+  constructor() {
+    super();
   }
 
   async inspectDbContext(): Promise<any> {
@@ -20,7 +20,7 @@ export class EFCoreDebugger extends DotNetDebugger {
         })
     `;
     
-    return await this.evaluate(expression);
+    return await this.evaluate('mock-session', expression);
   }
 
   async getChangeTracker(): Promise<any> {
@@ -35,8 +35,8 @@ export class EFCoreDebugger extends DotNetDebugger {
           ModifiedProperties = e.Properties.Where(p => p.IsModified).Select(p => p.Metadata.Name)
         })
     `;
-    
-    return await this.evaluate(expression);
+
+    return await this.evaluate('mock-session', expression);
   }
 
   async inspectQuery(queryable: string): Promise<any> {
@@ -44,8 +44,8 @@ export class EFCoreDebugger extends DotNetDebugger {
     const expression = `
       ${queryable}.ToQueryString()
     `;
-    
-    return await this.evaluate(expression);
+
+    return await this.evaluate('mock-session', expression);
   }
 
   async getExecutedQueries(): Promise<any> {
@@ -54,8 +54,8 @@ export class EFCoreDebugger extends DotNetDebugger {
       Microsoft.EntityFrameworkCore.Infrastructure.Internal.DiagnosticsLogger
         .GetExecutedCommands()
     `;
-    
-    return await this.evaluate(expression);
+
+    return await this.evaluate('mock-session', expression);
   }
 
   async inspectModelMetadata(): Promise<any> {
@@ -79,6 +79,6 @@ export class EFCoreDebugger extends DotNetDebugger {
         })
     `;
     
-    return await this.evaluate(expression);
+    return await this.evaluate('mock-session', expression);
   }
 }

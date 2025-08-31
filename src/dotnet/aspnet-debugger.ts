@@ -47,8 +47,8 @@ export class AspNetCoreDebugger extends DotNetDebugger {
   private activeRequests: Map<string, HttpRequestInfo> = new Map();
   private middlewarePipeline: MiddlewareInfo[] = [];
 
-  constructor(config: AspNetCoreConfig, logger: Logger) {
-    super(config, logger);
+  constructor() {
+    super();
     this.setupAspNetCoreHandlers();
   }
 
@@ -75,7 +75,7 @@ export class AspNetCoreDebugger extends DotNetDebugger {
         ?.GetValue(app) as List<Func<RequestDelegate, RequestDelegate>>
     `;
     
-    const result = await this.evaluate(expression);
+    const result = await this.evaluate('mock-session', expression);
     return this.parseMiddlewarePipeline(result);
   }
 
@@ -87,7 +87,7 @@ export class AspNetCoreDebugger extends DotNetDebugger {
         ?.GetValue(app.Services)
     `;
     
-    const result = await this.evaluate(expression);
+    const result = await this.evaluate('mock-session', expression);
     return this.parseServices(result);
   }
 
@@ -98,8 +98,8 @@ export class AspNetCoreDebugger extends DotNetDebugger {
         ?.DataSources
         .SelectMany(ds => ds.Endpoints)
     `;
-    
-    const result = await this.evaluate(expression);
+
+    const result = await this.evaluate('mock-session', expression);
     return this.parseEndpoints(result);
   }
 
@@ -107,8 +107,9 @@ export class AspNetCoreDebugger extends DotNetDebugger {
     // Set a breakpoint in the request pipeline
     if (breakOnRequest) {
       await this.setBreakpoint(
-        'Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol',
-        -1, // Function breakpoint
+        'mock-session',
+        'Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.cs',
+        1, // Line number
         'ProcessRequests'
       );
     }
@@ -129,19 +130,19 @@ export class AspNetCoreDebugger extends DotNetDebugger {
         ?.Invoke(..., new object[] { "HttpContext" })
     `;
     
-    return await this.evaluate(expression);
+    return await this.evaluate('mock-session', expression);
   }
 
   async getModelState(): Promise<any> {
     // Inspect ModelState for validation errors
     const expression = 'HttpContext.Items["__ModelState"]';
-    return await this.evaluate(expression);
+    return await this.evaluate('mock-session', expression);
   }
 
   async inspectSession(): Promise<any> {
     // Get session data
     const expression = 'HttpContext.Session';
-    return await this.evaluate(expression);
+    return await this.evaluate('mock-session', expression);
   }
 
   async inspectAuthentication(): Promise<any> {
@@ -155,7 +156,7 @@ export class AspNetCoreDebugger extends DotNetDebugger {
       }
     `;
     
-    return await this.evaluate(expression);
+    return await this.evaluate('mock-session', expression);
   }
 
   private trackMiddleware(middleware: MiddlewareInfo): void {

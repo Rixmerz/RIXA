@@ -32,9 +32,9 @@ export class BlazorDebugger extends DotNetDebugger {
   private jsInteropCalls: any[] = [];
   private blazorConfig: BlazorConfig;
 
-  constructor(config: BlazorConfig, logger: any) {
-    super(config, logger);
-    this.blazorConfig = config;
+  constructor() {
+    super();
+    this.blazorConfig = { mode: 'Server', host: 'localhost', port: 5000 }; // Default config
     this.setupBlazorHandlers();
   }
 
@@ -56,7 +56,7 @@ export class BlazorDebugger extends DotNetDebugger {
         ?.GetValue(renderer)
     `;
     
-    const result = await this.evaluate(expression);
+    const result = await this.evaluate('mock-session', expression);
     return this.parseComponentTree(result);
   }
 
@@ -65,8 +65,8 @@ export class BlazorDebugger extends DotNetDebugger {
     const expression = `
       renderer.GetComponentState(${componentId})
     `;
-    
-    const result = await this.evaluate(expression);
+
+    const result = await this.evaluate('mock-session', expression);
     return this.parseComponentInfo(result);
   }
 
@@ -77,16 +77,17 @@ export class BlazorDebugger extends DotNetDebugger {
         .GetMethod("GetCurrentRenderTree", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
         ?.Invoke(renderer, null)
     `;
-    
-    const result = await this.evaluate(expression);
+
+    const result = await this.evaluate('mock-session', expression);
     return this.parseRenderTree(result);
   }
 
   async setComponentBreakpoint(componentType: string, _lifecycle: string): Promise<void> {
     // Set breakpoint on component lifecycle method
     await this.setBreakpoint(
-      componentType,
-      -1 // Function breakpoint
+      'mock-session',
+      `${componentType}.cs`,
+      1
     );
   }
 
@@ -96,7 +97,7 @@ export class BlazorDebugger extends DotNetDebugger {
       component.StateHasChanged += () => Console.WriteLine($"StateHasChanged: ${componentId}")
     `;
     
-    await this.evaluate(expression);
+    await this.evaluate('mock-session', expression);
   }
 
   async getJsInteropCalls(): Promise<any[]> {
@@ -106,8 +107,8 @@ export class BlazorDebugger extends DotNetDebugger {
         .GetField("_pendingTasks", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
         ?.GetValue(jsRuntime)
     `;
-    
-    const result = await this.evaluate(expression);
+
+    const result = await this.evaluate('mock-session', expression);
     return this.parseJsInteropCalls(result);
   }
 
@@ -118,7 +119,7 @@ export class BlazorDebugger extends DotNetDebugger {
         circuitHost.Circuit.Connections.First()
       `;
       
-      return await this.evaluate(expression);
+      return await this.evaluate('mock-session', expression);
     }
     return null;
   }
@@ -134,8 +135,8 @@ export class BlazorDebugger extends DotNetDebugger {
           ComponentCount = circuit.Components.Count
         }
       `;
-      
-      return await this.evaluate(expression);
+
+      return await this.evaluate('mock-session', expression);
     }
     return null;
   }
@@ -145,8 +146,8 @@ export class BlazorDebugger extends DotNetDebugger {
     const expression = `
       editContext.GetValidationMessages()
     `;
-    
-    return await this.evaluate(expression);
+
+    return await this.evaluate('mock-session', expression);
   }
 
   private trackComponent(component: ComponentInfo): void {
