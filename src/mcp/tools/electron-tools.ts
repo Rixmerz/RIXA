@@ -851,8 +851,8 @@ export const debug_analyzeElectronSecurity = {
 /**
  * Get async operations (FUNCIÓN IMPLEMENTADA)
  */
-export const debug_getAsyncOperations = {
-  name: 'debug_getAsyncOperations',
+export const debug_getElectronAsyncOperations = {
+  name: 'debug_getElectronAsyncOperations',
   description: 'Get active async operations with Electron-specific tracking',
   inputSchema: z.object({
     sessionId: z.string().describe('Debugging session ID'),
@@ -984,5 +984,5 @@ export const electronTools = {
   debug_startIpcMonitoring,
   debug_getIpcMessages,
   debug_analyzeElectronSecurity,
-  debug_getAsyncOperations
+  debug_getElectronAsyncOperations
 };

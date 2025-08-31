@@ -129,7 +129,7 @@ await mcp.callTool('debug_analyzeElectronSecurity', {
 }
 ```
 
-##### ⚡ **debug_getAsyncOperations** - IMPLEMENTADA
+##### ⚡ **debug_getElectronAsyncOperations** - IMPLEMENTADA
 - **Propósito**: Tracking de operaciones asíncronas específicas de Electron
 - **Características**:
   - Tracking de IPC operations pendientes
@@ -138,7 +138,7 @@ await mcp.callTool('debug_analyzeElectronSecurity', {
   - Métricas de edad y tipos de operaciones
 
 ```typescript
-await mcp.callTool('debug_getAsyncOperations', {
+await mcp.callTool('debug_getElectronAsyncOperations', {
   sessionId: 'session-123',
   includeElectronIPC: true,
   includeRendererAsync: true,

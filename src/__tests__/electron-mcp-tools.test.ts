@@ -428,9 +428,9 @@ describe('Electron MCP Tools', () => {
       });
     });
 
-    describe('debug_getAsyncOperations', () => {
+    describe('debug_getElectronAsyncOperations', () => {
       it('should get async operations with Electron-specific tracking', async () => {
-        const tool = electronTools.debug_getAsyncOperations;
+        const tool = electronTools.debug_getElectronAsyncOperations;
 
         const args = {
           sessionId: 'test-session-123',
@@ -466,7 +466,7 @@ describe('Electron MCP Tools', () => {
           electronTools.debug_startIpcMonitoring,
           electronTools.debug_getIpcMessages,
           electronTools.debug_analyzeElectronSecurity,
-          electronTools.debug_getAsyncOperations
+          electronTools.debug_getElectronAsyncOperations
         ];
 
         for (const tool of tools) {

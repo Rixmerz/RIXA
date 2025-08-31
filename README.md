@@ -115,7 +115,7 @@ RIXA provides **47+ debugging tools** organized into specialized categories:
 - `debug_startIpcMonitoring` - Monitoreo avanzado de IPC con filtros
 - `debug_getIpcMessages` - Análisis detallado de mensajes IPC
 - `debug_analyzeElectronSecurity` - Análisis de seguridad integral
-- `debug_getAsyncOperations` - Tracking de operaciones asíncronas específicas de Electron
+- `debug_getElectronAsyncOperations` - Tracking de operaciones asíncronas específicas de Electron
 
 ### **.NET/C# Debugging Tools (7 tools) - 🆕 NUEVO**
 - **🎯 Multi-Framework Support**: ASP.NET Core, WPF, WinForms, Blazor Server/WASM, MAUI, Unity, Console

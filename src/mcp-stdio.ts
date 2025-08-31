@@ -420,7 +420,7 @@ async function main() {
     { name: 'debug_startIpcMonitoring', description: 'Start comprehensive IPC monitoring with advanced filtering and leak detection', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, channels: { type: 'array', items: { type: 'string' } }, capturePayloads: { type: 'boolean' }, trackTiming: { type: 'boolean' }, detectLeaks: { type: 'boolean' }, maxMessages: { type: 'number' } }, required: ['sessionId'] } },
     { name: 'debug_getIpcMessages', description: 'Get IPC messages with advanced filtering and analysis', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, timeRange: { type: 'string' }, filterByChannel: { type: 'string' }, includeStackTrace: { type: 'boolean' }, includePayloads: { type: 'boolean' }, limit: { type: 'number' } }, required: ['sessionId'] } },
     { name: 'debug_analyzeElectronSecurity', description: 'Comprehensive security analysis for Electron applications', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, checkNodeIntegration: { type: 'boolean' }, checkContextIsolation: { type: 'boolean' }, checkSandboxMode: { type: 'boolean' }, checkCSP: { type: 'boolean' }, checkRemoteModule: { type: 'boolean' } }, required: ['sessionId'] } },
-    { name: 'debug_getAsyncOperations', description: 'Get active async operations with Electron-specific tracking', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeElectronIPC: { type: 'boolean' }, includeRendererAsync: { type: 'boolean' }, trackWebContents: { type: 'boolean' }, includePromises: { type: 'boolean' }, includeTimers: { type: 'boolean' } }, required: ['sessionId'] } },
+    { name: 'debug_getElectronAsyncOperations', description: 'Get active async operations with Electron-specific tracking', inputSchema: { type: 'object', properties: { sessionId: { type: 'string' }, includeElectronIPC: { type: 'boolean' }, includeRendererAsync: { type: 'boolean' }, trackWebContents: { type: 'boolean' }, includePromises: { type: 'boolean' }, includeTimers: { type: 'boolean' } }, required: ['sessionId'] } },
 
     // .NET/C# debugging tools (7 tools)
     { name: 'debug_connectDotNet', description: 'Connect to a .NET application for debugging with automatic version and framework detection', inputSchema: { type: 'object', properties: { processId: { type: 'number' }, processName: { type: 'string' }, host: { type: 'string' }, port: { type: 'number' }, dotnetVersion: { type: 'string', enum: ['netframework4.0', 'netframework4.5', 'netframework4.6', 'netframework4.7', 'netframework4.8', 'netcore3.1', 'net5.0', 'net6.0', 'net7.0', 'net8.0', 'net9.0'] }, framework: { type: 'string', enum: ['aspnetcore', 'wpf', 'winforms', 'blazor-server', 'blazor-wasm', 'maui', 'unity', 'console', 'library'] }, runtime: { type: 'string', enum: ['framework', 'core', 'mono'] }, projectPath: { type: 'string' }, assemblyPath: { type: 'string' }, symbolsPath: { type: 'string' }, enableHotReload: { type: 'boolean' }, enableAsyncDebugging: { type: 'boolean' }, enableLinqDebugging: { type: 'boolean' }, enableExceptionBreaking: { type: 'boolean' }, timeout: { type: 'number' }, autoAttach: { type: 'boolean' }, debuggerType: { type: 'string', enum: ['vsdbg', 'netcoredbg', 'mono'] } } } },
@@ -4086,16 +4086,16 @@ async function main() {
           }
         }
 
-        case 'debug_getAsyncOperations': {
+        case 'debug_getElectronAsyncOperations': {
           try {
             const { electronTools } = await import('./mcp/tools/electron-tools.js');
-            const result = await electronTools.debug_getAsyncOperations.handler(args);
+            const result = await electronTools.debug_getElectronAsyncOperations.handler(args);
             return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
           } catch (error) {
             return { content: [{ type: 'text', text: JSON.stringify({
               success: false,
               error: error instanceof Error ? error.message : String(error),
-              operation: 'getAsyncOperations'
+              operation: 'getElectronAsyncOperations'
             }, null, 2) }] };
           }
         }

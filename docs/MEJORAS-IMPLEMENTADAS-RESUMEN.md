@@ -68,8 +68,8 @@ function getSafeLogger() {
   - Verificación de sandbox mode
   - Puntuación de riesgo y recomendaciones
 
-#### 5. **⚡ `debug_getAsyncOperations`** - IMPLEMENTADA
-- **Propósito**: Tracking de operaciones asíncronas
+#### 5. **⚡ `debug_getElectronAsyncOperations`** - IMPLEMENTADA
+- **Propósito**: Tracking de operaciones asíncronas específicas de Electron
 - **Características**:
   - Tracking de IPC operations pendientes
   - Monitoreo de WebContents operations
@@ -108,7 +108,7 @@ function getSafeLogger() {
 - ✅ Tests para `debug_startIpcMonitoring`
 - ✅ Tests para `debug_getIpcMessages`
 - ✅ Tests para `debug_analyzeElectronSecurity`
-- ✅ Tests para `debug_getAsyncOperations`
+- ✅ Tests para `debug_getElectronAsyncOperations`
 - ✅ Tests de manejo de errores para todas las nuevas funciones
 
 ---
