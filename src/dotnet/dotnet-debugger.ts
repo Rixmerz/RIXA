@@ -1,21 +1,30 @@
 /**
  * .NET Debugger Core Implementation
+ * Unified implementation combining advanced features with DAP compatibility
  */
 
 import { EventEmitter } from 'events';
 import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
+import { DapClient } from '../dap/client.js';
+import { VsDbgAdapter } from './vsdbg-adapter.js';
+import { NetCoreDbgAdapter } from './netcoredbg-adapter.js';
 import { DotNetVersionDetector } from './version-detector.js';
 import { DotNetFrameworkDetector } from './framework-detector.js';
+import type { Logger } from '../utils/logger.js';
 import type {
   DotNetDebugConfig,
+  DotNetDebuggerConfig,
   DotNetDebugSession,
   DotNetProcessInfo,
   DotNetBreakpoint,
   DotNetExpressionResult,
   DotNetObjectInfo,
   DotNetAssemblyInfo,
-  DotNetHotReloadInfo
+  DotNetHotReloadInfo,
+  DotNetThread,
+  DotNetStackFrame,
+  DotNetVariable
 } from './types.js';
 import { DotNetErrorType, DotNetDebugError } from './types.js';
 
@@ -28,10 +37,32 @@ export class DotNetDebugger extends EventEmitter {
   private frameworkDetector: DotNetFrameworkDetector;
   private debuggerProcesses = new Map<string, any>();
 
-  constructor() {
+  // DAP-compatible properties
+  private config?: DotNetDebuggerConfig;
+  protected dapClient?: DapClient;
+  private adapter?: VsDbgAdapter | NetCoreDbgAdapter;
+  private breakpoints: Map<string, DotNetBreakpoint> = new Map();
+  private threads: Map<number, DotNetThread> = new Map();
+  protected isConnected = false;
+  private sessionId?: string;
+  private logger?: Logger;
+
+  constructor(config?: DotNetDebuggerConfig, logger?: Logger) {
     super();
     this.versionDetector = DotNetVersionDetector.getInstance();
     this.frameworkDetector = DotNetFrameworkDetector.getInstance();
+
+    if (config) {
+      this.config = {
+        adapter: 'auto',
+        configuration: 'Debug',
+        timeout: 30000,
+        attachMode: false,
+        enableHotReload: true,
+        ...config
+      };
+      this.logger = logger;
+    }
   }
 
   static getInstance(): DotNetDebugger {

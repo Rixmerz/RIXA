@@ -42,6 +42,21 @@ export interface DotNetDebugConfig {
   debuggerType?: 'vsdbg' | 'netcoredbg' | 'mono';
 }
 
+// DAP-compatible configuration (from mikaelliljedahl implementation)
+export interface DotNetDebuggerConfig {
+  host: string;
+  port: number;
+  projectPath?: string;
+  adapter?: 'vsdbg' | 'netcoredbg' | 'auto';
+  launchProfile?: string;
+  targetFramework?: string;
+  configuration?: 'Debug' | 'Release';
+  timeout?: number;
+  attachMode?: boolean;
+  processId?: number;
+  enableHotReload?: boolean;
+}
+
 // Process Information
 export interface DotNetProcessInfo {
   pid: number;
@@ -204,6 +219,7 @@ export interface DotNetBreakpoint {
   assembly?: string;
   method?: string;
   isAsync?: boolean;
+  hitCount?: number; // From mikaelliljedahl implementation
 }
 
 // Debugging Session
@@ -313,4 +329,52 @@ export interface DotNetFrameworkCapabilities {
   supportsRemoteDebugging: boolean;
   supportsAttachToProcess: boolean;
   supportedDebuggers: string[];
+}
+
+// Additional DAP-compatible interfaces from mikaelliljedahl implementation
+export interface DotNetVariable {
+  name: string;
+  value: string;
+  type: string;
+  evaluateName?: string;
+  variablesReference: number;
+  namedVariables?: number;
+  indexedVariables?: number;
+  memoryReference?: string;
+}
+
+export interface DotNetThread {
+  id: number;
+  name: string;
+  state: 'running' | 'stopped' | 'waiting' | 'unstarted' | 'terminated';
+}
+
+export interface DotNetException {
+  id: string;
+  description: string;
+  breakMode: 'never' | 'always' | 'unhandled' | 'userUnhandled';
+  details?: {
+    message?: string;
+    typeName?: string;
+    fullTypeName?: string;
+    evaluateName?: string;
+    stackTrace?: string;
+    innerException?: DotNetException;
+  };
+}
+
+export interface ProjectInfo {
+  name: string;
+  targetFramework: string;
+  outputType: 'Exe' | 'Library' | 'WinExe';
+  projectFile: string;
+  outputPath: string;
+  assemblyName: string;
+  rootNamespace: string;
+  nullable?: boolean;
+  implicitUsings?: boolean;
+  packageReferences: Array<{
+    name: string;
+    version: string;
+  }>;
 }
