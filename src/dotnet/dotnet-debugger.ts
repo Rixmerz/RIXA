@@ -178,6 +178,125 @@ export class DotNetDebugger extends EventEmitter {
   }
 
   /**
+   * Get available .NET processes for debugging
+   */
+  async getAvailableProcesses(options: any = {}): Promise<DotNetProcessInfo[]> {
+    try {
+      // This is a placeholder implementation
+      // In a real implementation, this would scan for .NET processes
+      const { stdout } = await execAsync('dotnet --list-runtimes');
+
+      return [{
+        pid: 1234,
+        name: 'example-dotnet-app',
+        version: 'net8.0',
+        runtime: 'core',
+        framework: 'console',
+        architecture: 'x64',
+        startTime: new Date(),
+        workingDirectory: '/app',
+        commandLine: 'dotnet run',
+        assemblies: [],
+        isDebuggable: true
+      }];
+    } catch (error) {
+      throw new DotNetDebugError(
+        DotNetErrorType.PROCESS_NOT_FOUND,
+        'Failed to get available processes'
+      );
+    }
+  }
+
+  /**
+   * Inspect a .NET object
+   */
+  async inspectObject(sessionId: string, objectId: string, options: any = {}): Promise<DotNetObjectInfo> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new DotNetDebugError(
+        DotNetErrorType.CONNECTION_FAILED,
+        `Session not found: ${sessionId}`
+      );
+    }
+
+    // Placeholder implementation
+    return {
+      id: objectId,
+      type: 'System.Object',
+      value: null,
+      isNull: false,
+      isPrimitive: false,
+      isArray: false,
+      isCollection: false,
+      properties: [],
+      fields: [],
+      methods: []
+    };
+  }
+
+  /**
+   * Evaluate expression in debugging context
+   */
+  async evaluateExpression(sessionId: string, expression: string, options: any = {}): Promise<DotNetExpressionResult> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new DotNetDebugError(
+        DotNetErrorType.CONNECTION_FAILED,
+        `Session not found: ${sessionId}`
+      );
+    }
+
+    // Placeholder implementation
+    return {
+      success: true,
+      value: 'result',
+      type: 'System.String',
+      displayValue: 'result',
+      isAsync: false,
+      executionTime: 10
+    };
+  }
+
+  /**
+   * Get loaded assemblies
+   */
+  async getAssemblies(sessionId: string, options: any = {}): Promise<DotNetAssemblyInfo[]> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new DotNetDebugError(
+        DotNetErrorType.CONNECTION_FAILED,
+        `Session not found: ${sessionId}`
+      );
+    }
+
+    // Placeholder implementation
+    return [];
+  }
+
+  /**
+   * Enable hot reload
+   */
+  async enableHotReload(sessionId: string): Promise<DotNetHotReloadInfo> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new DotNetDebugError(
+        DotNetErrorType.CONNECTION_FAILED,
+        `Session not found: ${sessionId}`
+      );
+    }
+
+    // Placeholder implementation
+    return {
+      supported: true,
+      enabled: true,
+      changedFiles: [],
+      appliedChanges: [],
+      errors: [],
+      warnings: []
+    };
+  }
+
+  /**
    * Start Visual Studio Debugger
    */
   private async startVsDbg(session: DotNetDebugSession): Promise<void> {
