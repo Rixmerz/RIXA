@@ -10,6 +10,12 @@ import { BrowserDebugger } from '../typescript/browser-debugger.js';
 import { ReactDebugger } from '../typescript/react-debugger.js';
 import { NextJsDebugger } from '../typescript/nextjs-debugger.js';
 import { ElectronDebugger } from '../electron/electron-debugger.js';
+import { RustDebugger } from '../rust/rust-debugger.js';
+import { TauriDebugger } from '../rust/tauri-debugger.js';
+import { RustProfiler } from '../rust/rust-profiler.js';
+import { CargoIntegration } from '../rust/cargo-integration.js';
+import { RustErrorRecovery } from '../rust/error-recovery.js';
+import { RustWasmDebugger } from '../rust/wasm-debugger.js';
 import { SessionManager } from './session.js';
 
 export type SupportedLanguage =
@@ -23,6 +29,7 @@ export type SupportedLanguage =
   | 'python'
   | 'go'
   | 'rust'
+  | 'tauri'
   | 'csharp'
   | 'dotnet'
   | 'php';
@@ -34,6 +41,14 @@ export interface LanguageDebugSession {
   debugger?: any;
   debuggers?: Record<string, any>;
   metadata?: Record<string, any>;
+  rustComponents?: {
+    rustDebugger?: RustDebugger;
+    tauriDebugger?: TauriDebugger;
+    profiler?: RustProfiler;
+    cargoIntegration?: CargoIntegration;
+    errorRecovery?: RustErrorRecovery;
+    wasmDebugger?: RustWasmDebugger;
+  };
 }
 
 export interface DebugConnectionOptions {
@@ -111,7 +126,11 @@ export class LanguageDispatcher {
           break;
 
         case 'rust':
-          debuggerInstance = await this.connectToRust({ host, port: port || 2345 });
+          debuggerInstance = await this.connectToRust({ host, port: port || 2345, ...options });
+          break;
+
+        case 'tauri':
+          debuggerInstance = await this.connectToTauri({ host, port: port || 2345, ...options });
           break;
 
         case 'csharp':
@@ -797,50 +816,316 @@ export class LanguageDispatcher {
   private async connectToRust(options: any): Promise<any> {
     try {
       const { RustDebugger } = await import('../rust/rust-debugger.js');
-      const { ActixDebugger } = await import('../rust/actix-debugger.js');
+      const { RustProfiler } = await import('../rust/rust-profiler.js');
+      const { CargoIntegration } = await import('../rust/cargo-integration.js');
+      const { RustErrorRecovery } = await import('../rust/error-recovery.js');
+      const { RustWasmDebugger } = await import('../rust/wasm-debugger.js');
 
+      // Enhanced Rust debugger configuration
       const rustDebugger = new RustDebugger({
+        debugger: options.debugger || 'codelldb',
         host: options.host || 'localhost',
         port: options.port || 2345,
-        projectPath: options.projectPath,
-        binaryPath: options.binaryPath,
-        debugger: options.debugger || 'gdb',
-        enableActixDebugging: options.enableActixDebugging !== false,
-        enableRocketDebugging: options.enableRocketDebugging !== false,
-        enableWarpDebugging: options.enableWarpDebugging !== false,
-        timeout: options.timeout || 10000,
-        attachMode: options.attachMode !== false,
-        cargoProfile: options.cargoProfile || 'debug'
+        project_path: options.project_path || options.projectPath,
+        profile: options.profile || 'debug',
+        features: options.features || [],
+        toolchain: options.toolchain,
+        target: options.target,
+        enable_pretty_printing: options.enable_pretty_printing !== false,
+        enable_ownership_tracking: options.enable_ownership_tracking !== false,
+        enable_async_debugging: options.enable_async_debugging !== false,
+        enable_lifetime_analysis: options.enable_lifetime_analysis !== false,
+        enable_unsafe_tracking: options.enable_unsafe_tracking !== false,
+        enable_macro_debugging: options.enable_macro_debugging !== false,
+        enable_tauri_debugging: false,
+        enable_profiling: options.enable_profiling !== false,
+        enable_wasm_debugging: options.enable_wasm_debugging !== false,
+        timeout: options.timeout || 30000,
+        attach_mode: options.attach_mode !== false,
+        auto_restart: options.auto_restart !== false
       });
 
       const connectionResult = await rustDebugger.connect();
 
       if (connectionResult.success) {
-        let actixDebugger;
+        const rustComponents: any = {
+          rustDebugger
+        };
 
-        // Initialize Actix debugger if Actix is detected
-        const projectInfo = rustDebugger.getProjectInfo();
+        // Initialize additional components
+        let projectInfo = rustDebugger.getProjectInfo();
+
+        // Refresh project information to ensure latest detection
+        try {
+          projectInfo = await rustDebugger.refreshProjectInfo();
+          console.log('Project info refreshed:', { framework: projectInfo.framework, detectedFrameworks: projectInfo.detectedFrameworks });
+        } catch (error) {
+          console.warn('Failed to refresh project info, using cached:', error);
+        }
+
+        // Initialize Actix debugger if Actix is detected (with dynamic initialization)
+        const initializeActixDebugger = async () => {
+          if (!rustComponents.actixDebugger) {
+            try {
+              const { ActixDebugger } = await import('../rust/actix-debugger.js');
+              rustComponents.actixDebugger = new ActixDebugger(rustDebugger);
+              await rustComponents.actixDebugger.initialize();
+              console.log('Actix debugger initialized dynamically for Actix-web framework');
+              return true;
+            } catch (error) {
+              console.warn('Failed to initialize Actix debugger:', error);
+              return false;
+            }
+          }
+          return true;
+        };
+
         if (projectInfo?.framework === 'actix') {
-          actixDebugger = new ActixDebugger(rustDebugger);
+          await initializeActixDebugger();
+        }
+
+        // Listen for dynamic framework detection
+        rustDebugger.on('framework-detected', async (event: any) => {
+          if (event.framework === 'actix' && !rustComponents.actixDebugger) {
+            console.log('Actix framework detected dynamically, initializing debugger...');
+            await initializeActixDebugger();
+          }
+        });
+
+        // Initialize profiler if enabled
+        if (options.enable_profiling !== false) {
+          rustComponents.profiler = new RustProfiler({
+            project_path: options.project_path || options.projectPath || process.cwd(),
+            output_dir: options.profile_output_dir || '/tmp/rixa-profiles',
+            sample_rate: options.sample_rate || 1000,
+            max_stack_depth: 100,
+            enable_dwarf: true,
+            enable_symbols: true,
+            flamegraph_options: {
+              width: 1200,
+              height: 600,
+              font_type: 'Verdana',
+              font_size: 12,
+              colors: 'hot'
+            }
+          });
+        }
+
+        // Initialize Cargo integration if enabled
+        if (options.enable_cargo_integration !== false) {
+          rustComponents.cargoIntegration = new CargoIntegration({
+            project_path: options.project_path || options.projectPath || process.cwd(),
+            features: options.features || [],
+            profile: options.profile || 'debug',
+            enable_test_debugging: true,
+            enable_bench_profiling: true,
+            enable_example_debugging: true,
+            timeout: 300000
+          });
+
+          await rustComponents.cargoIntegration.initialize();
+        }
+
+        // Initialize error recovery if enabled
+        if (options.enable_error_recovery !== false) {
+          rustComponents.errorRecovery = new RustErrorRecovery({
+            project_path: options.project_path || options.projectPath || process.cwd(),
+            enable_panic_recovery: true,
+            enable_segfault_detection: true,
+            enable_deadlock_detection: true,
+            enable_leak_detection: true,
+            enable_stack_overflow_detection: true,
+            auto_restart: options.auto_restart !== false,
+            max_restart_attempts: 3,
+            restart_delay: 5000,
+            log_dir: '/tmp/rixa-error-logs'
+          });
+
+          await rustComponents.errorRecovery.startMonitoring();
+        }
+
+        // Initialize WASM debugger if enabled
+        if (options.enable_wasm_debugging === true) {
+          rustComponents.wasmDebugger = new RustWasmDebugger({
+            project_path: options.project_path || options.projectPath || process.cwd(),
+            host: options.host || 'localhost',
+            port: options.wasm_port || 9223,
+            enable_source_maps: true,
+            enable_memory_inspection: true,
+            enable_function_profiling: true,
+            enable_browser_devtools: true,
+            timeout: 30000
+          });
+
+          await rustComponents.wasmDebugger.initialize();
         }
 
         return {
-          type: 'rust-debugger',
+          type: 'advanced-rust-debugger',
           rustDebugger,
-          actixDebugger,
+          actixDebugger: rustComponents.actixDebugger,
+          ...rustComponents,
           sessionId: connectionResult.sessionId,
           connectionInfo: connectionResult.connectionInfo,
           connected: true,
           host: options.host || 'localhost',
           port: options.port || 2345,
           framework: projectInfo?.framework || 'rust',
-          message: `Rust debugging connected via ${connectionResult.connectionInfo?.type || 'unknown'} mode`
+          features: {
+            ownership_tracking: options.enable_ownership_tracking !== false,
+            async_debugging: options.enable_async_debugging !== false,
+            lifetime_analysis: options.enable_lifetime_analysis !== false,
+            unsafe_tracking: options.enable_unsafe_tracking !== false,
+            macro_debugging: options.enable_macro_debugging !== false,
+            profiling: options.enable_profiling !== false,
+            cargo_integration: options.enable_cargo_integration !== false,
+            error_recovery: options.enable_error_recovery !== false,
+            wasm_debugging: options.enable_wasm_debugging === true,
+            actix_debugging: !!rustComponents.actixDebugger
+          },
+          message: `Advanced Rust debugging connected via ${connectionResult.connectionInfo?.type || 'unknown'} mode${rustComponents.actixDebugger ? ' with Actix-web support' : ''}`
         };
       } else {
         throw new Error('Failed to connect to Rust application');
       }
     } catch (error) {
       this.logger.error('Failed to connect to Rust', { error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
+  }
+
+  private async connectToTauri(options: any): Promise<any> {
+    try {
+      const { RustDebugger } = await import('../rust/rust-debugger.js');
+      const { TauriDebugger } = await import('../rust/tauri-debugger.js');
+      const { RustProfiler } = await import('../rust/rust-profiler.js');
+      const { CargoIntegration } = await import('../rust/cargo-integration.js');
+      const { RustErrorRecovery } = await import('../rust/error-recovery.js');
+
+      // Enhanced Rust debugger configuration with Tauri support
+      const rustDebugger = new RustDebugger({
+        debugger: options.debugger || 'codelldb',
+        host: options.host || 'localhost',
+        port: options.port || 2345,
+        project_path: options.project_path || options.projectPath,
+        profile: options.profile || 'debug',
+        features: options.features || [],
+        toolchain: options.toolchain,
+        target: options.target,
+        enable_pretty_printing: options.enable_pretty_printing !== false,
+        enable_ownership_tracking: options.enable_ownership_tracking !== false,
+        enable_async_debugging: options.enable_async_debugging !== false,
+        enable_lifetime_analysis: options.enable_lifetime_analysis !== false,
+        enable_unsafe_tracking: options.enable_unsafe_tracking !== false,
+        enable_macro_debugging: options.enable_macro_debugging !== false,
+        enable_tauri_debugging: true,
+        enable_profiling: options.enable_profiling !== false,
+        enable_wasm_debugging: options.enable_wasm_debugging !== false,
+        timeout: options.timeout || 30000,
+        attach_mode: options.attach_mode !== false,
+        auto_restart: options.auto_restart !== false
+      });
+
+      const connectionResult = await rustDebugger.connect();
+
+      if (connectionResult.success) {
+        const tauriComponents: any = {
+          rustDebugger
+        };
+
+        // Initialize Tauri debugger
+        tauriComponents.tauriDebugger = new TauriDebugger(rustDebugger, {
+          host: options.host || 'localhost',
+          port: options.tauri_port || 0,
+          project_path: options.project_path || options.projectPath,
+          enable_ipc_tracking: options.enable_ipc_tracking !== false,
+          enable_command_debugging: options.enable_command_debugging !== false,
+          enable_window_debugging: options.enable_window_debugging !== false,
+          enable_webview_debugging: options.enable_webview_debugging !== false,
+          enable_plugin_debugging: options.enable_plugin_debugging !== false,
+          enable_event_debugging: options.enable_event_debugging !== false,
+          webview_dev_port: options.webview_dev_port || 9222,
+          timeout: options.timeout || 30000
+        });
+
+        // Initialize profiler
+        if (options.enable_profiling !== false) {
+          tauriComponents.profiler = new RustProfiler({
+            project_path: options.project_path || options.projectPath || process.cwd(),
+            output_dir: options.profile_output_dir || '/tmp/rixa-profiles',
+            sample_rate: options.sample_rate || 1000,
+            max_stack_depth: 100,
+            enable_dwarf: true,
+            enable_symbols: true,
+            flamegraph_options: {
+              width: 1200,
+              height: 600,
+              font_type: 'Verdana',
+              font_size: 12,
+              colors: 'hot'
+            }
+          });
+        }
+
+        // Initialize Cargo integration
+        tauriComponents.cargoIntegration = new CargoIntegration({
+          project_path: options.project_path || options.projectPath || process.cwd(),
+          features: options.features || [],
+          profile: options.profile || 'debug',
+          enable_test_debugging: true,
+          enable_bench_profiling: true,
+          enable_example_debugging: true,
+          timeout: 300000
+        });
+
+        await tauriComponents.cargoIntegration.initialize();
+
+        // Initialize error recovery
+        if (options.enable_error_recovery !== false) {
+          tauriComponents.errorRecovery = new RustErrorRecovery({
+            project_path: options.project_path || options.projectPath || process.cwd(),
+            enable_panic_recovery: true,
+            enable_segfault_detection: true,
+            enable_deadlock_detection: true,
+            enable_leak_detection: true,
+            enable_stack_overflow_detection: true,
+            auto_restart: options.auto_restart !== false,
+            max_restart_attempts: 3,
+            restart_delay: 5000,
+            log_dir: '/tmp/rixa-error-logs'
+          });
+
+          await tauriComponents.errorRecovery.startMonitoring();
+        }
+
+        return {
+          type: 'tauri-debugger',
+          ...tauriComponents,
+          sessionId: connectionResult.sessionId,
+          connectionInfo: connectionResult.connectionInfo,
+          connected: true,
+          host: options.host || 'localhost',
+          port: options.port || 2345,
+          framework: 'tauri',
+          features: {
+            ipc_tracking: options.enable_ipc_tracking !== false,
+            command_debugging: options.enable_command_debugging !== false,
+            window_debugging: options.enable_window_debugging !== false,
+            webview_debugging: options.enable_webview_debugging !== false,
+            plugin_debugging: options.enable_plugin_debugging !== false,
+            event_debugging: options.enable_event_debugging !== false,
+            ownership_tracking: options.enable_ownership_tracking !== false,
+            async_debugging: options.enable_async_debugging !== false,
+            profiling: options.enable_profiling !== false,
+            error_recovery: options.enable_error_recovery !== false
+          },
+          message: `Tauri debugging connected with advanced features enabled`
+        };
+      } else {
+        throw new Error('Failed to connect to Tauri application');
+      }
+    } catch (error) {
+      this.logger.error('Failed to connect to Tauri', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -2447,19 +2732,31 @@ export class LanguageDispatcher {
 
     switch (operation) {
       case 'setBreakpoint':
+        console.log('executeRustOperation setBreakpoint - received params:', JSON.stringify(params, null, 2));
+
         if (!params.file || !params.line) {
+          console.error('Missing parameters for setBreakpoint:', { file: params.file, line: params.line, hasFile: !!params.file, hasLine: !!params.line });
           throw new Error('setBreakpoint requires file and line parameters');
         }
-        const breakpoint = await rustDebugger.setBreakpoint(
-          params.file,
-          params.line,
-          params.condition
-        );
-        return {
-          success: true,
-          breakpoint,
-          sessionId: session.sessionId
-        };
+
+        console.log('Calling rustDebugger.setBreakpoint with:', { file: params.file, line: params.line, condition: params.condition });
+
+        try {
+          const breakpoint = await rustDebugger.setBreakpoint(
+            params.file,
+            params.line,
+            params.condition
+          );
+          console.log('setBreakpoint successful, result:', breakpoint);
+          return {
+            success: true,
+            breakpoint,
+            sessionId: session.sessionId
+          };
+        } catch (error) {
+          console.error('setBreakpoint failed:', error);
+          throw error;
+        }
 
       case 'setFunctionBreakpoint':
         if (!params.functionName) {
@@ -2698,6 +2995,37 @@ export class LanguageDispatcher {
           success: true,
           requests,
           sessionId: session.sessionId
+        };
+
+      // Rust-specific async operations
+      case 'startAsyncTracking':
+        const asyncTrackingResult = await rustDebugger.startAsyncTracking();
+        return {
+          success: true,
+          message: 'Started async tracking for Rust application',
+          sessionId: session.sessionId,
+          timestamp: Date.now(),
+          ...asyncTrackingResult
+        };
+
+      case 'stopAsyncTracking':
+        const stopAsyncResult = await rustDebugger.stopAsyncTracking();
+        return {
+          success: true,
+          message: 'Stopped async tracking for Rust application',
+          sessionId: session.sessionId,
+          timestamp: Date.now(),
+          ...stopAsyncResult
+        };
+
+      case 'getAsyncOperations':
+        const asyncOperations = await rustDebugger.getAsyncOperations();
+        return {
+          success: true,
+          operations: asyncOperations,
+          count: asyncOperations.length,
+          sessionId: session.sessionId,
+          timestamp: Date.now()
         };
 
       default:

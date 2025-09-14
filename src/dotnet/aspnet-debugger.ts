@@ -1,6 +1,5 @@
 import { DotNetDebugger } from './dotnet-debugger.js';
 import type { DotNetDebuggerConfig } from './types.js';
-import type { Logger } from '../utils/logger.js';
 
 export interface AspNetCoreConfig extends DotNetDebuggerConfig {
   applicationUrl?: string;

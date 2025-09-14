@@ -127,7 +127,7 @@ export class DotNetDebugger extends BaseDebugger {
     return breakpoint;
   }
 
-  async removeBreakpoint(sessionId: string, breakpointId: string): Promise<void> {
+  async removeBreakpoint(sessionId: string, _breakpointId: string): Promise<void> {
     this.validateSession(sessionId);
     // Mock implementation
   }
@@ -142,9 +142,9 @@ export class DotNetDebugger extends BaseDebugger {
     }];
   }
 
-  async getStackTrace(sessionId: string, threadId: number): Promise<DebugStackFrame[]> {
+  async getStackTrace(sessionId: string, _threadId: number): Promise<DebugStackFrame[]> {
     this.validateSession(sessionId);
-    
+
     return [{
       id: 1,
       name: 'Main',
@@ -157,9 +157,9 @@ export class DotNetDebugger extends BaseDebugger {
     }];
   }
 
-  async getVariables(sessionId: string, variablesReference: number): Promise<DebugVariable[]> {
+  async getVariables(sessionId: string, _variablesReference: number): Promise<DebugVariable[]> {
     this.validateSession(sessionId);
-    
+
     return [{
       name: 'result',
       value: '"Hello World"',
@@ -168,9 +168,9 @@ export class DotNetDebugger extends BaseDebugger {
     }];
   }
 
-  async evaluate(sessionId: string, expression: string, frameId?: number): Promise<ExpressionResult> {
+  async evaluate(sessionId: string, _expression: string, _frameId?: number): Promise<ExpressionResult> {
     this.validateSession(sessionId);
-    
+
     return {
       success: true,
       value: 'mock result',
@@ -179,34 +179,34 @@ export class DotNetDebugger extends BaseDebugger {
     };
   }
 
-  async continue(sessionId: string, threadId?: number): Promise<void> {
+  async continue(sessionId: string, _threadId?: number): Promise<void> {
     this.validateSession(sessionId);
     // Mock implementation
   }
 
-  async stepOver(sessionId: string, threadId: number): Promise<void> {
+  async stepOver(sessionId: string, _threadId: number): Promise<void> {
     this.validateSession(sessionId);
     // Mock implementation
   }
 
-  async stepIn(sessionId: string, threadId: number): Promise<void> {
+  async stepIn(sessionId: string, _threadId: number): Promise<void> {
     this.validateSession(sessionId);
     // Mock implementation
   }
 
-  async stepOut(sessionId: string, threadId: number): Promise<void> {
+  async stepOut(sessionId: string, _threadId: number): Promise<void> {
     this.validateSession(sessionId);
     // Mock implementation
   }
 
-  async pause(sessionId: string, threadId?: number): Promise<void> {
+  async pause(sessionId: string, _threadId?: number): Promise<void> {
     this.validateSession(sessionId);
     // Mock implementation
   }
 
   // .NET-specific methods for advanced tools
 
-  async getAvailableProcesses(options: any = {}): Promise<DotNetProcessInfo[]> {
+  async getAvailableProcesses(_options: any = {}): Promise<DotNetProcessInfo[]> {
     try {
       // Mock implementation - in real implementation, this would scan for .NET processes
       return [{
@@ -230,7 +230,7 @@ export class DotNetDebugger extends BaseDebugger {
     }
   }
 
-  async inspectObject(sessionId: string, objectId: string, options: any = {}): Promise<DotNetObjectInfo> {
+  async inspectObject(sessionId: string, objectId: string, _options: any = {}): Promise<DotNetObjectInfo> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new DotNetDebugError(
@@ -254,7 +254,7 @@ export class DotNetDebugger extends BaseDebugger {
     };
   }
 
-  async evaluateExpression(sessionId: string, expression: string, options: any = {}): Promise<DotNetExpressionResult> {
+  async evaluateExpression(sessionId: string, _expression: string, _options: any = {}): Promise<DotNetExpressionResult> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new DotNetDebugError(
@@ -274,7 +274,7 @@ export class DotNetDebugger extends BaseDebugger {
     };
   }
 
-  async getAssemblies(sessionId: string, options: any = {}): Promise<DotNetAssemblyInfo[]> {
+  async getAssemblies(sessionId: string, _options: any = {}): Promise<DotNetAssemblyInfo[]> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new DotNetDebugError(

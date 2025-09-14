@@ -1,6 +1,4 @@
 import { DotNetDebugger } from './dotnet-debugger.js';
-import type { DotNetDebuggerConfig } from './types.js';
-import type { Logger } from '../utils/logger.js';
 
 export class EFCoreDebugger extends DotNetDebugger {
   constructor() {

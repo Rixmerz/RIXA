@@ -89,9 +89,9 @@ RIXA is a **universal debugging platform** that connects AI assistants with debu
 
 ## 🔧 **MCP Tools Available**
 
-RIXA provides **47+ debugging tools** organized into specialized categories:
+RIXA provides **62+ debugging tools** organized into specialized categories:
 
-> **🆕 LATEST UPDATE**: Added complete **C#/.NET debugging support** with 7 new specialized tools, covering all major .NET frameworks from .NET Framework 4.0 to .NET 9.0!
+> **🆕 LATEST UPDATE**: Added complete **Rust debugging support** with 15 new specialized tools, including ownership tracking, async debugging, Tauri framework support, WASM debugging, and advanced profiling capabilities!
 
 ### **Core Debugging Tools (27 tools)**
 - **Session Management**: Create, attach, terminate debugging sessions
@@ -116,6 +116,42 @@ RIXA provides **47+ debugging tools** organized into specialized categories:
 - `debug_getIpcMessages` - Análisis detallado de mensajes IPC
 - `debug_analyzeElectronSecurity` - Análisis de seguridad integral
 - `debug_getElectronAsyncOperations` - Tracking de operaciones asíncronas específicas de Electron
+
+### **Rust Debugging Tools (15 tools) - 🆕 NUEVO**
+- **🦀 Advanced Rust Support**: Complete Rust debugging with ownership tracking and async support
+- **🔧 Multiple Debuggers**: GDB, LLDB, CodeLLDB, rust-gdb, rust-lldb support
+- **⚡ Ownership Analysis**: Real-time borrow checker integration and lifetime tracking
+- **🔄 Async Debugging**: Tokio runtime inspection, Future state tracking, async task debugging
+- **🏗️ Cargo Integration**: Workspace support, test debugging, benchmark profiling
+- **🎯 Tauri Framework**: Desktop app debugging with IPC, window management, WebView integration
+- **🌐 WASM Support**: WebAssembly debugging with browser DevTools integration
+- **📊 Advanced Profiling**: CPU, memory, async, and lock profiling with flamegraph generation
+- **🛡️ Safety Analysis**: Unsafe code tracking, memory safety validation
+- **🔍 Macro Debugging**: Macro expansion debugging and procedural macro support
+
+#### **🆕 Herramientas Rust Implementadas:**
+- `debug_rust_create` - **Advanced Rust session** with ownership tracking and async support
+- `debug_rust_setBreakpoint` - **Smart breakpoints** with ownership state and async context
+- `debug_rust_getOwnershipInfo` - **Ownership analysis** with borrow checker integration
+- `debug_rust_getAsyncState` - **Async debugging** with Tokio runtime and Future inspection
+- `debug_rust_startProfiling` - **Performance profiling** with CPU, memory, and async analysis
+- `debug_rust_analyzeCargo` - **Cargo integration** with workspace and dependency analysis
+- `debug_tauri_create` - **Tauri debugging** with IPC tracking and window management
+- `debug_tauri_getIpcMessages` - **IPC analysis** with command tracking and event debugging
+- `debug_wasm_create` - **WASM debugging** with browser DevTools and memory inspection
+- `debug_wasm_analyzeModule` - **WASM analysis** with function inspection and import/export tracking
+- `debug_rust_getUnsafeBlocks` - **Safety analysis** with unsafe code tracking
+- `debug_rust_getMacroExpansions` - **Macro debugging** with expansion analysis
+- `debug_rust_getLifetimeInfo` - **Lifetime analysis** with scope and reference tracking
+- `debug_rust_getCrateInfo` - **Crate analysis** with dependency and feature inspection
+- `debug_rust_getErrorRecovery` - **Error recovery** with intelligent debugging suggestions
+
+#### **🎯 Framework-Specific Features:**
+- **Tokio**: Runtime inspection, task debugging, async I/O analysis
+- **Actix-web**: HTTP request debugging, middleware analysis, actor system inspection
+- **Tauri**: IPC debugging, window management, WebView integration, plugin analysis
+- **WASM**: Browser integration, memory inspection, JavaScript interop debugging
+- **Cargo**: Workspace debugging, test execution, benchmark profiling
 
 ### **.NET/C# Debugging Tools (7 tools) - 🆕 NUEVO**
 - **🎯 Multi-Framework Support**: ASP.NET Core, WPF, WinForms, Blazor Server/WASM, MAUI, Unity, Console
